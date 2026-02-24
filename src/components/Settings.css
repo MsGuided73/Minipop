@@ -1,0 +1,207 @@
+/* =====================================================
+   SETTINGS PANEL STYLES
+   ===================================================== */
+
+.settings-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.15s ease;
+}
+
+.settings-panel {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-xl);
+  width: 100%;
+  max-width: 480px;
+  box-shadow: var(--shadow-lg), var(--shadow-glow);
+  overflow: hidden;
+}
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.settings-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.settings-title-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  background: var(--accent-subtle);
+  color: var(--accent-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.settings-title {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* Sections */
+.settings-section {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.settings-section--last {
+  border-bottom: none;
+}
+
+.settings-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.settings-input {
+  font-family: 'SF Mono', 'Roboto Mono', monospace;
+  font-size: 12px;
+}
+
+.settings-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.settings-row {
+  display: flex;
+  gap: 8px;
+}
+
+.settings-row .btn { flex: 1; justify-content: center; }
+
+.btn-success {
+  background: #22c55e !important;
+  box-shadow: 0 2px 12px rgba(34, 197, 94, 0.3) !important;
+}
+
+.settings-test-result {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+}
+
+.settings-test-result.ok {
+  background: rgba(34, 197, 94, 0.1);
+  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.2);
+}
+
+.settings-test-result.err {
+  background: rgba(255, 80, 100, 0.1);
+  color: #ff8090;
+  border: 1px solid rgba(255, 80, 100, 0.2);
+}
+
+/* Model selection */
+.settings-models {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.settings-model-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  cursor: pointer;
+  transition: all var(--transition-base);
+  text-align: left;
+}
+
+.settings-model-btn:hover {
+  border-color: var(--border-default);
+  background: var(--bg-hover);
+}
+
+.settings-model-btn.active {
+  border-color: var(--accent-primary);
+  background: var(--accent-subtle);
+}
+
+.settings-model-info {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-model-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.settings-model-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 1px;
+}
+
+.settings-model-badge {
+  font-size: 10px;
+  font-weight: 500;
+  background: rgba(124, 92, 252, 0.15);
+  color: var(--accent-primary);
+  padding: 2px 7px;
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+}
+
+.settings-model-check {
+  color: var(--accent-primary);
+  flex-shrink: 0;
+}
+
+/* Info rows */
+.settings-info-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.settings-info-label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.settings-info-val {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}

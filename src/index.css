@@ -1,0 +1,357 @@
+/* =====================================================
+   POPPYAI — Global Design System
+   Dark, premium, glassmorphism aesthetic
+   ===================================================== */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  /* Color Palette */
+  --bg-deep: #0a0b0f;
+  --bg-canvas: #0d0e14;
+  --bg-surface: #13141c;
+  --bg-elevated: #1a1b26;
+  --bg-card: #1e2030;
+  --bg-hover: #252740;
+
+  --accent-primary: #7c5cfc;
+  --accent-secondary: #5e9fff;
+  --accent-glow: rgba(124, 92, 252, 0.35);
+  --accent-subtle: rgba(124, 92, 252, 0.12);
+
+  --text-primary: #e8eaf6;
+  --text-secondary: #9da3c8;
+  --text-muted: #5c6080;
+  --text-inverse: #0a0b0f;
+
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-default: rgba(255, 255, 255, 0.1);
+  --border-accent: rgba(124, 92, 252, 0.4);
+
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.6);
+  --shadow-glow: 0 0 30px rgba(124, 92, 252, 0.25);
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-full: 9999px;
+
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-display: "Outfit", system-ui, sans-serif;
+
+  --transition-fast: 120ms ease;
+  --transition-base: 200ms ease;
+  --transition-slow: 350ms ease;
+
+  /* Node colors */
+  --node-media: #2a1f5e;
+  --node-media-border: rgba(124, 92, 252, 0.5);
+  --node-ai: #1a2540;
+  --node-ai-border: rgba(94, 159, 255, 0.5);
+  --node-text: #1e2520;
+  --node-text-border: rgba(80, 200, 120, 0.4);
+  --node-url: #251e30;
+  --node-url-border: rgba(200, 100, 255, 0.4);
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: var(--font-sans);
+  background: var(--bg-deep);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ===================== SCROLLBARS ===================== */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: var(--radius-full);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* ===================== BUTTONS ===================== */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: var(--radius-md);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-base);
+  border: none;
+  outline: none;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.btn-primary {
+  background: var(--accent-primary);
+  color: #fff;
+  box-shadow: 0 2px 12px rgba(124, 92, 252, 0.4);
+}
+.btn-primary:hover {
+  background: #8f70ff;
+  box-shadow: 0 4px 20px rgba(124, 92, 252, 0.55);
+  transform: translateY(-1px);
+}
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-default);
+}
+.btn-ghost:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--border-accent);
+}
+
+.btn-icon {
+  padding: 7px;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+  cursor: pointer;
+  transition: all var(--transition-base);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.btn-icon:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--border-default);
+}
+
+/* ===================== GLASSMORPHISM ===================== */
+.glass {
+  background: rgba(30, 32, 48, 0.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border-default);
+}
+
+.glass-dark {
+  background: rgba(13, 14, 20, 0.85);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--border-subtle);
+}
+
+/* ===================== INPUTS ===================== */
+.input {
+  width: 100%;
+  padding: 9px 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  outline: none;
+  transition: all var(--transition-base);
+}
+.input::placeholder {
+  color: var(--text-muted);
+}
+.input:focus {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px var(--accent-subtle);
+}
+
+.textarea {
+  resize: none;
+  min-height: 80px;
+}
+
+/* ===================== REACT FLOW OVERRIDES ===================== */
+.react-flow__background {
+  background: var(--bg-canvas) !important;
+}
+
+.react-flow__controls {
+  background: var(--bg-elevated) !important;
+  border: 1px solid var(--border-default) !important;
+  border-radius: var(--radius-lg) !important;
+  overflow: hidden;
+  box-shadow: var(--shadow-md) !important;
+}
+
+.react-flow__controls-button {
+  background: transparent !important;
+  border-bottom: 1px solid var(--border-subtle) !important;
+  color: var(--text-secondary) !important;
+  fill: var(--text-secondary) !important;
+  transition: all var(--transition-base) !important;
+}
+.react-flow__controls-button:hover {
+  background: var(--bg-hover) !important;
+  color: var(--text-primary) !important;
+  fill: var(--text-primary) !important;
+}
+.react-flow__controls-button:last-child {
+  border-bottom: none !important;
+}
+
+.react-flow__minimap {
+  background: var(--bg-elevated) !important;
+  border: 1px solid var(--border-default) !important;
+  border-radius: var(--radius-lg) !important;
+  overflow: hidden;
+}
+
+.react-flow__edge-path {
+  stroke: rgba(124, 92, 252, 0.6) !important;
+  stroke-width: 2 !important;
+}
+
+.react-flow__edge.animated .react-flow__edge-path {
+  stroke-dasharray: 8, 4;
+  animation: dash 1.5s linear infinite;
+}
+
+@keyframes dash {
+  to {
+    stroke-dashoffset: -12;
+  }
+}
+
+.react-flow__edge:hover .react-flow__edge-path {
+  stroke: var(--accent-primary) !important;
+  stroke-width: 2.5 !important;
+}
+
+.react-flow__connection-path {
+  stroke: var(--accent-primary) !important;
+  stroke-width: 2 !important;
+}
+
+.react-flow__handle {
+  width: 14px !important;
+  height: 14px !important;
+  background: var(--accent-primary) !important;
+  border: 2.5px solid #fff !important;
+  border-radius: 50% !important;
+  opacity: 1 !important;                         /* Always visible */
+  box-shadow: 0 0 0 2px var(--accent-glow), 0 0 10px rgba(124, 92, 252, 0.5) !important;
+  transition: all var(--transition-base) !important;
+  animation: handle-pulse 2.5s ease-in-out infinite !important;
+  cursor: crosshair !important;
+  z-index: 10 !important;
+}
+.react-flow__handle:hover {
+  width: 20px !important;
+  height: 20px !important;
+  background: #fff !important;
+  box-shadow: 0 0 0 3px var(--accent-primary), 0 0 20px rgba(124, 92, 252, 0.9) !important;
+  animation: none !important;                    /* Stop pulse on hover */
+  transform: scale(1.1) !important;
+}
+
+@keyframes handle-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px var(--accent-glow), 0 0 8px rgba(124, 92, 252, 0.4); }
+  50%       { box-shadow: 0 0 0 4px var(--accent-glow), 0 0 16px rgba(124, 92, 252, 0.7); }
+}
+
+/* ===================== ANIMATIONS ===================== */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 15px var(--accent-glow);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(124, 92, 252, 0.5);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease both;
+}
+.animate-scale-in {
+  animation: scaleIn 0.2s ease both;
+}
+.animate-slide-up {
+  animation: slideUp 0.25s ease both;
+}
+
+/* ===================== UTILITY ===================== */
+.text-muted {
+  color: var(--text-muted);
+}
+.text-secondary {
+  color: var(--text-secondary);
+}
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
