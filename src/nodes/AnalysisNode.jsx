@@ -44,7 +44,7 @@ export default function AnalysisNode({ id, data, selected }) {
     try {
       const nodes = getNodes()
       const edges = getEdges()
-      const response = await analyzeViralPatterns(id, nodes, edges, state.apiKey, state.model)
+      const response = await analyzeViralPatterns(id, nodes, edges, state.apiKey, state.model, state.geminiKey)
       
       updateNode(id, { data: { report: response } })
     } catch (err) {

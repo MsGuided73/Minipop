@@ -23,6 +23,17 @@ function readApiKey() {
     return decodeKey(stored)
   } catch { return '' }
 }
+function readGeminiKey() {
+  try {
+    const stored = localStorage.getItem('poppyai_gemini_key')
+    if (!stored) return ''
+    return decodeKey(stored)
+  } catch { return '' }
+}
+function saveGeminiKey(raw) {
+  if (!raw) { localStorage.removeItem('poppyai_gemini_key'); return }
+  localStorage.setItem('poppyai_gemini_key', encodeKey(raw))
+}
 
 // ─── Canvas state persistence ─────────────────────────────────────────────────
 // Canvas only stores nodes + edges. API key & model are stored separately
@@ -43,7 +54,8 @@ const initialState = {
   viewport: savedCanvas?.viewport || { x: 0, y: 0, zoom: 1 },
   // Always loaded from their own keys — never wiped by canvas saves
   apiKey: readApiKey(),
-  model: localStorage.getItem('poppyai_model') || 'gpt-5.2-2025-12-11',
+  geminiKey: readGeminiKey(),
+  model: localStorage.getItem('poppyai_model') || 'gpt-4o',
   settingsOpen: false,
   selectedNodes: [],
 }
@@ -90,6 +102,10 @@ function canvasReducer(state, action) {
     case 'SET_API_KEY':
       saveApiKey(action.key)         // obfuscated base64 storage
       return { ...state, apiKey: action.key }
+
+    case 'SET_GEMINI_KEY':
+      saveGeminiKey(action.key)
+      return { ...state, geminiKey: action.key }
 
     case 'SET_MODEL':
       localStorage.setItem('poppyai_model', action.model)
@@ -236,8 +252,13 @@ export function CanvasProvider({ children }) {
   }, [])
 
   // ─── AI API call ───────────────────────────────────────────────────────────
-  const callAI = useCallback(async (aiNodeId, userMessage, nodes, edges, apiKey, model) => {
-    if (!apiKey) throw new Error('No API key set. Open ⚙️ Settings and paste your OpenAI API key.')
+  const callAI = useCallback(async (aiNodeId, userMessage, nodes, edges, apiKey, model, geminiKey) => {
+    const isGemini = model.startsWith('gemini')
+    const currentKey = isGemini ? geminiKey : apiKey
+
+    if (!currentKey) {
+      throw new Error(`No ${isGemini ? 'Gemini' : 'OpenAI'} API key set. Open ⚙️ Settings and paste your key.`)
+    }
 
     const context = buildAIContext(aiNodeId, nodes, edges)
 
@@ -256,40 +277,72 @@ Answer the user's question grounded in these sources. Be specific and cite the s
     const aiNode = nodes.find(n => n.id === aiNodeId)
     const history = aiNode?.data?.messages || []
 
-    const messages = [
-      { role: 'system', content: systemPrompt },
-      ...history.slice(-12).map(m => ({ role: m.role, content: m.content })),
-      { role: 'user', content: userMessage },
-    ]
+    if (isGemini) {
+      // Gemini API (Google AI)
+      const contents = [
+        { role: 'user', parts: [{ text: `SYSTEM INSTRUCTION: ${systemPrompt}` }] },
+        ...history.slice(-12).map(m => ({
+          role: m.role === 'assistant' ? 'model' : 'user',
+          parts: [{ text: m.content }]
+        })),
+        { role: 'user', parts: [{ text: userMessage }] }
+      ]
 
-    const isReasoningModel = model.startsWith('o1') || model.startsWith('o3') || model.startsWith('o4')
-    const requestBody = {
-      model,
-      messages,
-      max_completion_tokens: 2000,
-      ...(isReasoningModel ? {} : { temperature: 0.7 }),
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${currentKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents }),
+      })
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}))
+        throw new Error(err.error?.message || `Gemini API error: ${response.status}`)
+      }
+
+      const data = await response.json()
+      return data.candidates[0]?.content?.parts[0]?.text || ''
+    } else {
+      // OpenAI API
+      const messages = [
+        { role: 'system', content: systemPrompt },
+        ...history.slice(-12).map(m => ({ role: m.role, content: m.content })),
+        { role: 'user', content: userMessage },
+      ]
+
+      const isReasoningModel = model.startsWith('o1') || model.startsWith('o3') || model.startsWith('o4')
+      const requestBody = {
+        model,
+        messages,
+        max_completion_tokens: 2000,
+        ...(isReasoningModel ? {} : { temperature: 0.7 }),
+      }
+
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${currentKey}`,
+        },
+        body: JSON.stringify(requestBody),
+      })
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}))
+        throw new Error(err.error?.message || `OpenAI API error: ${response.status}`)
+      }
+
+      const data = await response.json()
+      return data.choices[0]?.message?.content || ''
     }
-
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify(requestBody),
-    })
-
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}))
-      throw new Error(err.error?.message || `API error: ${response.status}`)
-    }
-
-    const data = await response.json()
-    return data.choices[0]?.message?.content || ''
   }, [buildAIContext])
 
-  const analyzeViralPatterns = useCallback(async (aiNodeId, nodes, edges, apiKey, model) => {
-    if (!apiKey) throw new Error('No API key set. Open ⚙️ Settings and paste your OpenAI API key.')
+  const analyzeViralPatterns = useCallback(async (aiNodeId, nodes, edges, apiKey, model, geminiKey) => {
+    const isGemini = model.startsWith('gemini')
+    const currentKey = isGemini ? geminiKey : apiKey
+
+    if (!currentKey) {
+      throw new Error(`No ${isGemini ? 'Gemini' : 'OpenAI'} API key set. Open ⚙️ Settings and paste your key.`)
+    }
 
     const context = buildAIContext(aiNodeId, nodes, edges)
     if (!context) throw new Error('No sources connected for analysis.')
@@ -314,32 +367,53 @@ IMPORTANT:
 ${context}
 === END SOURCES ===`
 
-    const messages = [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: 'Perform a comprehensive viral pattern analysis across these sources.' },
-    ]
+    if (isGemini) {
+      const contents = [
+        { role: 'user', parts: [{ text: systemPrompt }] },
+        { role: 'user', parts: [{ text: 'Perform a comprehensive viral pattern analysis across these sources.' }] }
+      ]
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages,
-        temperature: 0.4, // Lower temperature for more grounded analysis
-        max_completion_tokens: 2500,
-      }),
-    })
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${currentKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents, generationConfig: { temperature: 0.4 } }),
+      })
 
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}))
-      throw new Error(err.error?.message || `API error: ${response.status}`)
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}))
+        throw new Error(err.error?.message || `Gemini API error: ${response.status}`)
+      }
+
+      const data = await response.json()
+      return data.candidates[0]?.content?.parts[0]?.text || ''
+    } else {
+      const messages = [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: 'Perform a comprehensive viral pattern analysis across these sources.' },
+      ]
+
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${currentKey}`,
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          temperature: 0.4,
+          max_completion_tokens: 2500,
+        }),
+      })
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}))
+        throw new Error(err.error?.message || `OpenAI API error: ${response.status}`)
+      }
+
+      const data = await response.json()
+      return data.choices[0]?.message?.content || ''
     }
-
-    const data = await response.json()
-    return data.choices[0]?.message?.content || ''
   }, [buildAIContext])
 
   const value = {

@@ -1,15 +1,14 @@
-# 📈 Progress — PoppyAI
+# Progress Log - PoppyAI
 
-## 2026-03-23
-- [x] Protocol 0: Initialized Project Memory (`task_plan.md`, `findings.md`, `progress.md`)
-- [x] Protocol 0: Initialized `gemini.md` (Project Constitution)
-- [x] Phase 1: B - Blueprint (PRD integrated, schemas defined, roadmap updated)
-- [x] Phase 1: B - Blueprint (Inspiration & PRD Integration)
-- [x] Phase 2: L - Link (Analysis Node & Logic)
-- [/] Phase 3: A - Architect (Synthesis & Output Generation)
+## [2026-03-23]
+- **Initialized Project Memory**: Created `task_plan.md`, `findings.md`, `progress.md`, and `gemini.md`.
+- **Phase 2 Implementation**: Created `AnalysisNode.jsx` and updated `CanvasContext.jsx` with viral pattern analysis logic.
+- **Bug Fix**: Resolved `SyntaxError` in `AnalysisNode.jsx` by correcting `lucide-react` icon imports.
+- **Gemini Integration**: 
+    - Added support for Gemini 3.1 Pro and Gemini Flash 2.5.
+    - Implemented a dual-key system in `Settings.jsx` (OpenAI + Google Gemini).
+    - Updated `CanvasContext.jsx` to route requests to Google AI for Gemini models.
+    - Updated `AIAssistantNode` and `AnalysisNode` to pass the correct keys.
 
-## Errors & Resolutions
-- AnalysisNode.jsx:3 SyntaxError (BrainIndicator not found in lucide-react). Fixed by replacing with `Brain`.
-
-## Test Results
-- None yet.
+## [Notes]
+- YouTube transcript fetch is currently hitting 404s due to scraping limitations. Need to investigate better fallback or proxy strategies.

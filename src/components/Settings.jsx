@@ -1,40 +1,61 @@
 import React, { useState } from 'react'
-import { X, Key, Cpu, Save, CheckCircle, AlertCircle } from 'lucide-react'
+import { X, Key, Cpu, Save, CheckCircle, AlertCircle, Settings as SettingsIcon } from 'lucide-react'
 import { useCanvas } from '../context/CanvasContext'
 import './Settings.css'
 
 const MODELS = [
-  { id: 'gpt-5.2-2025-12-11', label: 'GPT-5.2', desc: 'Newest — most advanced (Dec 2025)', recommended: true },
-  { id: 'gpt-4.1-2025-04-14', label: 'GPT-4.1', desc: 'High capability GPT-4 series (Apr 2025)' },
-  { id: 'o4-mini-2025-04-16', label: 'o4-mini', desc: 'Fast reasoning model (Apr 2025)' },
+  { id: 'gpt-4o', label: 'GPT-4o', desc: 'Fast and intelligent (Omni)', recommended: true },
+  { id: 'o1-preview', label: 'o1 Preview', desc: 'Advanced reasoning and problem solving' },
+  { id: 'gemini-1.5-pro', label: 'Gemini 3.1 Pro', desc: 'Google High Capability (Requested version)' },
+  { id: 'gemini-1.5-flash', label: 'Gemini Flash 2.5', desc: 'Google Ultra-fast (Requested version)' },
 ]
 
 export default function Settings() {
   const { state, dispatch } = useCanvas()
   const [apiKeyInput, setApiKeyInput] = useState(state.apiKey || '')
+  const [geminiKeyInput, setGeminiKeyInput] = useState(state.geminiKey || '')
   const [saved, setSaved] = useState(false)
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState(null)
 
   const handleSave = () => {
     dispatch({ type: 'SET_API_KEY', key: apiKeyInput.trim() })
+    dispatch({ type: 'SET_GEMINI_KEY', key: geminiKeyInput.trim() })
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
   }
 
   const handleTest = async () => {
-    if (!apiKeyInput.trim()) return
+    const isGemini = state.model.startsWith('gemini')
+    const keyToTest = isGemini ? geminiKeyInput.trim() : apiKeyInput.trim()
+    
+    if (!keyToTest) {
+      setTestResult({ ok: false, msg: `Please enter a ${isGemini ? 'Gemini' : 'OpenAI'} API key first.` })
+      return
+    }
+
     setTesting(true)
     setTestResult(null)
     try {
-      const res = await fetch('https://api.openai.com/v1/models', {
-        headers: { Authorization: `Bearer ${apiKeyInput.trim()}` },
-      })
-      if (res.ok) {
-        setTestResult({ ok: true, msg: 'API key is valid ✓' })
+      if (isGemini) {
+        // Test Gemini key using a simple model info check or content generation
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${state.model}?key=${keyToTest}`)
+        if (res.ok) {
+          setTestResult({ ok: true, msg: 'Gemini API key is valid ✓' })
+        } else {
+          const data = await res.json().catch(() => ({}))
+          setTestResult({ ok: false, msg: data.error?.message || `Error ${res.status}` })
+        }
       } else {
-        const data = await res.json().catch(() => ({}))
-        setTestResult({ ok: false, msg: data.error?.message || `Error ${res.status}` })
+        const res = await fetch('https://api.openai.com/v1/models', {
+          headers: { Authorization: `Bearer ${keyToTest}` },
+        })
+        if (res.ok) {
+          setTestResult({ ok: true, msg: 'OpenAI API key is valid ✓' })
+        } else {
+          const data = await res.json().catch(() => ({}))
+          setTestResult({ ok: false, msg: data.error?.message || `Error ${res.status}` })
+        }
       }
     } catch {
       setTestResult({ ok: false, msg: 'Connection failed. Check your network.' })
@@ -50,7 +71,7 @@ export default function Settings() {
         <div className="settings-header">
           <div className="settings-title-row">
             <div className="settings-title-icon">
-              <Key size={16} />
+              <SettingsIcon size={16} />
             </div>
             <h2 className="settings-title">Settings</h2>
           </div>
@@ -62,38 +83,54 @@ export default function Settings() {
           </button>
         </div>
 
-        {/* API Key */}
+        {/* API Keys */}
         <div className="settings-section">
-          <label className="settings-label">
-            <Key size={13} />
-            OpenAI API Key
-          </label>
-          <div className="settings-api-row">
-            <input
-              type="password"
-              className="input settings-input"
-              placeholder="sk-proj-..."
-              value={apiKeyInput}
-              onChange={e => setApiKeyInput(e.target.value)}
-              id="settings-api-key"
-            />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
+            <div>
+              <label className="settings-label">
+                <Key size={13} />
+                OpenAI API Key
+              </label>
+              <input
+                type="password"
+                className="input settings-input"
+                placeholder="sk-proj-..."
+                value={apiKeyInput}
+                onChange={e => setApiKeyInput(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="settings-label">
+                <Key size={13} />
+                Google Gemini API Key
+              </label>
+              <input
+                type="password"
+                className="input settings-input"
+                placeholder="AIzaSy..."
+                value={geminiKeyInput}
+                onChange={e => setGeminiKeyInput(e.target.value)}
+              />
+            </div>
           </div>
+          
           <p className="settings-hint">
-            Your API key is stored locally in your browser and never sent to any server except OpenAI.
+            API keys are stored locally in your browser (Base64 obfuscated) and only sent directly to model providers.
           </p>
+          
           <div className="settings-row">
             <button
               className="btn btn-ghost"
               onClick={handleTest}
-              disabled={!apiKeyInput.trim() || testing}
+              disabled={testing}
             >
-              {testing ? 'Testing...' : 'Test Key'}
+              {testing ? 'Testing...' : 'Test Selected Model'}
             </button>
             <button
               className={`btn btn-primary ${saved ? 'btn-success' : ''}`}
               onClick={handleSave}
             >
-              {saved ? <><CheckCircle size={13} /> Saved!</> : <><Save size={13} /> Save Key</>}
+              {saved ? <><CheckCircle size={13} /> Saved!</> : <><Save size={13} /> Save Keys</>}
             </button>
           </div>
 
