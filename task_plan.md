@@ -10,48 +10,38 @@ Build a full-featured visual AI canvas workspace cloning PoppyAI's core function
 - AI Assistant nodes that synthesize connected content
 - Beautiful dark UI matching PoppyAI aesthetics
 
-## Phase Checklist
+## roadmap
 
-### Phase 0: Setup ✅
+### Phase 1: Core MVP (Ingest & Foundations)
+- [ ] Multi-format ingestion (PDF, YouTube link, Text, Images)
+- [ ] Project/Workspace management
+- [ ] Infinite Canvas foundation (@xyflow/react)
+- [ ] LocalStorage persistence engine
 
-- [x] gemini.md initialized
-- [x] task_plan.md created
-- [ ] Vite + React project scaffolded
-- [ ] Dependencies installed
+### Phase 2: Analysis & Intelligence (The "Viral" Layer)
+- [ ] Transcript/Text extraction pipeline
+- [ ] Single-video pattern analysis node
+- [ ] Multi-video comparison engine
+- [ ] Grounded AI Chat (RAG over connected nodes)
 
-### Phase 1: Canvas Foundation
+### Phase 3: Synthesis & Creation (The "Ship" Layer)
+- [ ] Output Editor (Scripts, Hooks, Briefs)
+- [ ] Template system for recurring patterns
+- [ ] Brand Voice/Persona memory
+- [ ] Export system (Text, Reports)
 
-- [ ] Infinite canvas with pan/zoom (React Flow)
-- [ ] Empty state UI
-- [ ] Toolbar (add node, AI assistant button)
-- [ ] Settings panel (API key input)
+### Phase 4: Polish & Growth
+- [ ] Animations & Micro-interactions
+- [ ] Collaboration features (Shared views)
+- [ ] Advanced visual briefing layers
 
-### Phase 2: Node Types
+## Verification Plan
 
-- [ ] Media Node (images, video preview)
-- [ ] YouTube Node (thumbnail + title scrape)
-- [ ] Document Node (PDF, text files)
-- [ ] URL/Web Node (screenshot + summary)
-- [ ] Text/Note Node
-- [ ] AI Assistant Node (chat interface)
+### Automated Tests
+- `npm test`: Verify node creation and connection logic.
+- `vitest`: Unit tests for transcript extraction and pattern mapping.
 
-### Phase 3: Drag & Drop
-
-- [ ] File drop zone on canvas
-- [ ] Auto-detect file type → correct node
-- [ ] URL paste → web node
-- [ ] Multi-file drop → grid layout
-
-### Phase 4: AI Integration
-
-- [ ] Collect context from connected source nodes
-- [ ] OpenAI API call with context
-- [ ] Chat UI in AI Assistant node
-- [ ] Previous chats history
-
-### Phase 5: Persistence & Polish
-
-- [ ] Auto-save to localStorage
-- [ ] Load saved canvas on startup
-- [ ] Export canvas as JSON
-- [ ] Animations & micro-interactions
+### Manual Verification
+- Dropping a YouTube link → Verify thumbnail and transcript extraction.
+- Connecting 3 videos to an AI node → Verify pattern report generation.
+- Generating a "Hook" from analyzed patterns → Verify alignment with PRD principles.

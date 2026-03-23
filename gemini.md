@@ -1,28 +1,63 @@
 # 📜 PoppyAI — Project Constitution (gemini.md)
 
-## 1. Data Schemas
+### User
+```json
+{
+  "id": "string",
+  "email": "string",
+  "workspaces": ["WorkspaceID[]"]
+}
+```
+
+### Workspace / Project Schema
+```json
+{
+  "id": "string",
+  "name": "string",
+  "boards": ["BoardID[]"],
+  "sources": ["SourceID[]"],
+  "drafts": ["DraftID[]"],
+  "analyses": ["AnalysisID[]"],
+  "tags": ["string[]"],
+  "createdAt": "ISO",
+  "updatedAt": "ISO"
+}
+```
+
+### Board Schema (Visual Canvas)
+```json
+{
+  "id": "string",
+  "name": "string",
+  "nodes": ["Node[]"],
+  "edges": ["Edge[]"],
+  "viewport": { "x": "number", "y": "number", "zoom": "number" }
+}
+```
 
 ### Node Schema
-
 ```json
 {
   "id": "string (uuid)",
-  "type": "media | document | ai-assistant | url | text | youtube",
+  "type": "media | document | ai-assistant | url | text | youtube | tiktok",
   "position": { "x": "number", "y": "number" },
   "data": {
     "label": "string",
     "content": "string | File | URL",
     "mimeType": "string",
     "preview": "string (base64 or URL)",
-    "metadata": {}
+    "metadata": {
+      "transcript": "string",
+      "summary": "string",
+      "patterns": "PatternReportID"
+    }
   },
   "width": "number",
   "height": "number"
 }
 ```
 
-### Edge (Connection) Schema
-
+### Edge Schema
 ```json
 {
   "id": "string",
@@ -32,44 +67,30 @@
 }
 ```
 
-### AI Assistant Node Schema
-
+### Pattern Report Schema
 ```json
 {
   "id": "string",
-  "type": "ai-assistant",
-  "connectedNodeIds": ["string"],
-  "messages": [
-    { "role": "user | assistant", "content": "string", "timestamp": "ISO" }
-  ],
-  "currentPrompt": "string",
-  "model": "gpt-4o | claude-3-5-sonnet",
-  "context": "synthesized string from connected nodes"
-}
-```
-
-### Project Schema
-
-```json
-{
-  "id": "string",
-  "name": "string",
-  "nodes": ["Node[]"],
-  "edges": ["Edge[]"],
-  "viewport": { "x": "number", "y": "number", "zoom": "number" },
-  "createdAt": "ISO",
-  "updatedAt": "ISO"
+  "sourceIds": ["string[]"],
+  "patterns": {
+    "hookFormula": "string",
+    "retentionStructure": "string",
+    "emotionalTriggers": "string",
+    "pacing": "string",
+    "cta": "string"
+  }
 }
 ```
 
 ## 2. Behavioral Rules
 
-- Rule 1: AI Assistant nodes ONLY process content from directly connected nodes
-- Rule 2: Dropped files are immediately previewed as nodes on the canvas at drop position
-- Rule 3: API keys are stored in localStorage (never hardcoded)
-- Rule 4: Canvas state is auto-saved to localStorage every 30 seconds
-- Rule 5: Connections are always directional — content flows FROM source TO AI Assistant
-- Rule 6: Multiple files dropped simultaneously create multiple nodes in a grid pattern
+- **Grounded Responses**: AI must prioritize source material over generic knowledge. 
+- **Pattern-First Analysis**: Viral analysis identifies likely patterns and hypotheses, not deterministic certainty.
+- **Node Connectivity**: AI Assistant nodes only process content from directly connected source nodes.
+- **Auto-Persist**: Canvas state and workspace data auto-save to localStorage every 30 seconds.
+- **Flow Direction**: Content flows FROM source TO AI Assistant/Analysis nodes.
+- **Safety**: Speculative patterns must be framed as "observed features" or "likely drivers."
+- **Institutional Memory**: Workspaces preserve context and brand voice over time.
 
 ## 3. Architectural Invariants
 
@@ -83,4 +104,4 @@
 
 ## 🕒 Maintenance Log
 
-- **2026-02-23**: Project Initialized. PoppyAI canvas clone. Visual AI workspace with drag-drop nodes and AI synthesis.
+- **2026-03-23**: Updated Project Constitution based on PRD. Defined Content Intelligence Workspace vision.

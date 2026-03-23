@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Bot, Type, Globe, Image, Youtube, FileText, Trash2, Settings, Download, Upload, Plus, ChevronDown } from 'lucide-react'
+import { Bot, Type, Globe, Image, Youtube, FileText, Trash2, Settings, Download, Upload, Plus, ChevronDown, Zap } from 'lucide-react'
 import { useCanvas } from '../context/CanvasContext'
 import './Toolbar.css'
 
@@ -9,6 +9,7 @@ const nodeTypes = [
   { type: 'urlNode', label: 'Web Link', icon: Globe, color: '#60a5fa', desc: 'Link any URL' },
   { type: 'mediaNode', label: 'Media', icon: Image, color: '#a78bfa', desc: 'Image or video' },
   { type: 'youtubeNode', label: 'YouTube', icon: Youtube, color: '#ff4070', desc: 'YouTube video' },
+  { type: 'analysisNode', label: 'Analysis', icon: Zap, color: '#fbbf24', desc: 'Extract viral patterns' },
 ]
 
 export default function Toolbar({ onAddNode }) {

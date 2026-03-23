@@ -288,6 +288,60 @@ Answer the user's question grounded in these sources. Be specific and cite the s
     return data.choices[0]?.message?.content || ''
   }, [buildAIContext])
 
+  const analyzeViralPatterns = useCallback(async (aiNodeId, nodes, edges, apiKey, model) => {
+    if (!apiKey) throw new Error('No API key set. Open ⚙️ Settings and paste your OpenAI API key.')
+
+    const context = buildAIContext(aiNodeId, nodes, edges)
+    if (!context) throw new Error('No sources connected for analysis.')
+
+    const systemPrompt = `You are a Content Intelligence Specialist.
+Your task is to perform a structured Viral Pattern Analysis on the provided source materials.
+
+Analyze the materials for:
+1. Hook Formula: How does it grab attention in the first 5-15 seconds?
+2. Retention Structure: How is pacing and tension maintained?
+3. Emotional Triggers: What emotions (awe, humor, fear, curiosity) are leveraged?
+4. Pacing & Momentum: Narrative arc and speed.
+5. CTA Placement: How and when is the audience prompted to act?
+
+IMPORTANT: 
+- Frame findings as "observed patterns" and "likely drivers".
+- Avoid definitive certainty; use hypothesis-driven language.
+- citations: Mention the source label for each insight.
+- grounded: only use information from the provided sources.
+
+=== SOURCE MATERIALS ===
+${context}
+=== END SOURCES ===`
+
+    const messages = [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: 'Perform a comprehensive viral pattern analysis across these sources.' },
+    ]
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature: 0.4, // Lower temperature for more grounded analysis
+        max_completion_tokens: 2500,
+      }),
+    })
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      throw new Error(err.error?.message || `API error: ${response.status}`)
+    }
+
+    const data = await response.json()
+    return data.choices[0]?.message?.content || ''
+  }, [buildAIContext])
+
   const value = {
     state,
     dispatch,
@@ -295,6 +349,7 @@ Answer the user's question grounded in these sources. Be specific and cite the s
     updateNode,
     deleteNode,
     callAI,
+    analyzeViralPatterns,
     buildAIContext,
     triggerSave,
     registerFlowSetters,
