@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react'
 import { Handle, Position } from '@xyflow/react'
-import { X, Youtube, ExternalLink, Loader, FileText, AlertCircle, Edit, Check } from 'lucide-react'
+import { X, Youtube, ExternalLink, Loader, FileText, AlertCircle, Edit, Check, MessageSquare } from 'lucide-react'
 import { useCanvas } from '../context/CanvasContext'
 import './nodes.css'
 
@@ -47,6 +47,46 @@ export default function YouTubeNode({ id, data, selected }) {
     setErrorMsg('')
 
     try {
+      // 1. Try Local Proxy first (Bypasses IP blocks via residential connection)
+      try {
+        const localResponse = await fetch(`/api/transcript?videoId=${videoId}`)
+        if (localResponse.ok) {
+          const localData = await localResponse.json()
+          
+          const transcript = localData.transcript || 'No transcript found (Metadata-only mode)'
+          const meta = localData.metadata || {}
+          
+          // Construct grounded text for AI
+          const groundedText = [
+            `VIDEO TITLE: ${meta.title || 'Unknown'}`,
+            `UPLOADER: ${meta.uploader || 'Unknown'}`,
+            `VIEWS: ${meta.viewCount?.toLocaleString() || 'Unknown'}`,
+            `LOCKED TRANSCRIPT:`,
+            transcript,
+            `---`,
+            `AUDIENCE COMMENTS (Top 15):`,
+            (meta.comments || []).map(c => `- [${c.author}]: ${c.text}`).join('\n')
+          ].join('\n\n')
+
+          updateNode(id, {
+            data: {
+              label: meta.title || data.label,
+              extractedText: groundedText,
+              transcriptCharCount: transcript.length,
+              transcriptVia: 'local-proxy-rich-comments',
+              metadata: meta
+            }
+          })
+          
+          setVia('local-proxy-rich-comments')
+          setStatus('loaded')
+          return 
+        }
+      } catch (e) {
+        console.warn('Local transcript proxy failed, falling back...', e)
+      }
+
+      // 2. Fallback to Supabase Edge Function (Cloud Fetcher)
       const res = await fetch(`${TRANSCRIPT_API}?videoId=${videoId}`)
       const json = await res.json()
 
@@ -97,7 +137,11 @@ export default function YouTubeNode({ id, data, selected }) {
   const statusConfig = {
     idle:    null,
     loading: { icon: <Loader size={10} className="spin" />, text: 'Fetching transcript…',  cls: 'node-tag--loading' },
-    loaded:  { icon: <FileText size={10} />,                text: `✓ Transcript loaded${charCount ? ` · ${(charCount/1000).toFixed(1)}k chars` : ''}${via ? ` · ${via}` : ''}`, cls: 'node-tag--success' },
+    loaded:  { 
+      icon: <FileText size={10} />, 
+      text: `✓ ${data.metadata?.viewCount ? `${(data.metadata.viewCount / 1000000).toFixed(1)}M views · ` : ''}${data.metadata?.comments?.length > 0 ? '💬 Comments synced · ' : ''}Transcript loaded${charCount ? ` · ${(charCount/1000).toFixed(1)}k chars` : ''}`, 
+      cls: 'node-tag--success' 
+    },
     failed:  { icon: <AlertCircle size={10} />,             text: 'No transcript — URL-only mode', cls: 'node-tag--warning' },
   }[status]
 

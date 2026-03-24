@@ -265,13 +265,16 @@ export function CanvasProvider({ children }) {
     const systemPrompt = context
       ? `You are a helpful AI research assistant on a visual canvas workspace.
 
-The user has connected the following content sources to you. Read them carefully. For text notes, reproduce them accurately. For YouTube links, summarize the video if you recognize it. For URLs, describe the page if you know it.
+The user has connected the following content sources to you. Read them carefully. 
 
 === CONNECTED SOURCES ===
 ${context}
 === END SOURCES ===
 
-Answer the user's question grounded in these sources. Be specific and cite the source label.`
+IMPORTANT INSTRUCTION FOR YOUTUBE/URLS:
+If a connected source is a YouTube video or Website and the transcript/text is marked as "Unavailable" or "Failed to fetch", you MUST use your Google Search tool to research the video's content, summaries, and key points. Do NOT claim the content is unavailable until you have attempted a search.
+
+Answer the user's question grounded in these sources (and your search results where applicable). Be specific and cite the source label.`
       : `You are a helpful AI assistant on a visual canvas. No content nodes are connected yet — answering as a general assistant.`
 
     const aiNode = nodes.find(n => n.id === aiNodeId)
@@ -351,8 +354,15 @@ Answer the user's question grounded in these sources. Be specific and cite the s
     const context = buildAIContext(aiNodeId, nodes, edges)
     if (!context) throw new Error('No sources connected for analysis.')
 
-    const systemPrompt = `You are a Content Intelligence Specialist.
+    const systemPrompt = `You are a Content Intelligence Specialist. 
 Your task is to perform a structured Viral Pattern Analysis on the provided source materials.
+
+=== SOURCE MATERIALS ===
+${context}
+=== END SOURCES ===
+
+IMPORTANT INSTRUCTION:
+If a YouTube video or URL source is missing a transcript or text (e.g. marked as "Failed to fetch"), you MUST use your Google Search tool to research the video title, creator, and content to extract these patterns.
 
 Analyze the materials for:
 1. Hook Formula: How does it grab attention in the first 5-15 seconds?
@@ -361,15 +371,9 @@ Analyze the materials for:
 4. Pacing & Momentum: Narrative arc and speed.
 5. CTA Placement: How and when is the audience prompted to act?
 
-IMPORTANT: 
 - Frame findings as "observed patterns" and "likely drivers".
 - Avoid definitive certainty; use hypothesis-driven language.
-- citations: Mention the source label for each insight.
-- grounded: only use information from the provided sources.
-
-=== SOURCE MATERIALS ===
-${context}
-=== END SOURCES ===`
+- Mention the source label for each insight.`
 
     if (isGemini) {
       const contents = [
