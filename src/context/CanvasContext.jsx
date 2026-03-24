@@ -288,12 +288,13 @@ Answer the user's question grounded in these sources. Be specific and cite the s
         { role: 'user', parts: [{ text: userMessage }] }
       ]
 
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${currentKey}`, {
+      // Use v1beta for advanced features like grounding
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${currentKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           contents,
-          tools: [{ googleSearchRetrieval: {} }]
+          tools: [{ googleSearch: {} }]
         }),
       })
 
@@ -376,13 +377,14 @@ ${context}
         { role: 'user', parts: [{ text: 'Perform a comprehensive viral pattern analysis across these sources.' }] }
       ]
 
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${currentKey}`, {
+      // Use v1beta for advanced features like grounding
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${currentKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           contents, 
           generationConfig: { temperature: 0.4 },
-          tools: [{ googleSearchRetrieval: {} }]
+          tools: [{ googleSearch: {} }]
         }),
       })
 

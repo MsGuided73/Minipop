@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react'
 import { Handle, Position, useReactFlow, useEdges } from '@xyflow/react'
-import { X, Send, Bot, Sparkles, RefreshCw, ChevronDown, Copy, Check, Trash2, Wand2 } from 'lucide-react'
+import { X, Send, Bot, User, Loader, Sparkles, RefreshCw, ChevronDown, Copy, Check, Trash2, Wand2, Globe } from 'lucide-react'
 import { useCanvas } from '../context/CanvasContext'
 import './nodes.css'
 
@@ -12,17 +12,15 @@ export default function AIAssistantNode({ id, data, selected }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [copiedMsgId, setCopiedMsgId] = useState(null)
+  const isGemini = state.model?.startsWith('gemini')
   const [contextPreview, setContextPreview] = useState(false)
 
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
   const messages = data.messages || []
-  // Always keep a ref to the latest messages to avoid stale closures in handleSend
   const messagesRef = useRef(messages)
   useEffect(() => { messagesRef.current = messages }, [messages])
 
-  // useEdges() is reactive — re-renders this node when edges change
-  // Bidirectional: count connections in either direction
   const allEdges = useEdges()
   const connectedSources = allEdges.filter(
     e => (e.source === id || e.target === id)
@@ -45,7 +43,6 @@ export default function AIAssistantNode({ id, data, selected }) {
     setError('')
     setLoading(true)
 
-    // Use the ref so we always have the freshest messages list
     const currentMessages = messagesRef.current
     const userMsg = { id: Date.now(), role: 'user', content: msg, timestamp: new Date().toISOString() }
     const updatedMessages = [...currentMessages, userMsg]
@@ -65,13 +62,12 @@ export default function AIAssistantNode({ id, data, selected }) {
       updateNode(id, { data: { messages: [...updatedMessages, assistantMsg] } })
     } catch (err) {
       setError(err.message)
-      // Restore messages to before the failed send
       updateNode(id, { data: { messages: currentMessages } })
       setInput(msg)
     } finally {
       setLoading(false)
     }
-  }, [input, loading, id, updateNode, callAI, state.apiKey, state.model, getNodes, getEdges])
+  }, [input, loading, id, updateNode, callAI, state.apiKey, state.model, state.geminiKey, getNodes, getEdges])
 
   const handleKeyDown = useCallback((e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -111,7 +107,7 @@ export default function AIAssistantNode({ id, data, selected }) {
 
   return (
     <div className={`node ai-node ${selected ? 'node--selected' : ''}`} style={{ width: 380, height: 480 }}>
-      {/* Only has target handles — AI receives connections */}
+      {/* Handles */}
       <Handle type="target" position={Position.Left} id="target" />
       <Handle type="source" position={Position.Right} id="out" />
 
@@ -255,9 +251,16 @@ export default function AIAssistantNode({ id, data, selected }) {
           </button>
         </div>
         <div className="ai-input-footer">
-          <span className="ai-model-badge">
-            {state.model || 'gpt-4o'}
-          </span>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <span className="ai-model-badge">
+              {state.model || 'gpt-4o'}
+            </span>
+            {isGemini && (
+              <span className="ai-grounding-badge" style={{ fontSize: 10, color: '#60a5fa', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <Globe size={10} /> Search Active
+              </span>
+            )}
+          </div>
           <span className="ai-shortcut">↵ Send · ⇧↵ Newline</span>
         </div>
       </div>
@@ -266,9 +269,8 @@ export default function AIAssistantNode({ id, data, selected }) {
 }
 
 function formatMessageContent(content) {
-  // Basic markdown-lite rendering
+  if (!content) return null;
   return content.split('\n').map((line, i) => {
-    // Bold **text**
     const parts = line.split(/(\*\*[^*]+\*\*)/g).map((part, j) => {
       if (part.startsWith('**') && part.endsWith('**')) {
         return <strong key={j}>{part.slice(2, -2)}</strong>
