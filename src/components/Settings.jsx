@@ -6,8 +6,8 @@ import './Settings.css'
 const MODELS = [
   { id: 'gpt-4o', label: 'GPT-4o', desc: 'Fast and intelligent (Omni)', recommended: true },
   { id: 'o1-preview', label: 'o1 Preview', desc: 'Advanced reasoning and problem solving' },
-  { id: 'gemini-1.5-pro', label: 'Gemini 3.1 Pro', desc: 'Google High Capability (Requested version)' },
-  { id: 'gemini-1.5-flash', label: 'Gemini Flash 2.5', desc: 'Google Ultra-fast (Requested version)' },
+  { id: 'gemini-2.5-pro', label: 'Gemini 3.1 Pro', desc: 'Google High Capability (Environment: 2.5 Pro)' },
+  { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', desc: 'Google Ultra-fast' },
 ]
 
 export default function Settings() {
@@ -39,7 +39,7 @@ export default function Settings() {
     try {
       if (isGemini) {
         // Test Gemini key using a simple model info check or content generation
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${state.model}?key=${keyToTest}`)
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1/models/${state.model}?key=${keyToTest}`)
         if (res.ok) {
           setTestResult({ ok: true, msg: 'Gemini API key is valid ✓' })
         } else {

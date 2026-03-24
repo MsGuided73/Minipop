@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react'
 import { Handle, Position } from '@xyflow/react'
-import { X, Youtube, ExternalLink, Loader, FileText, AlertCircle } from 'lucide-react'
+import { X, Youtube, ExternalLink, Loader, FileText, AlertCircle, Edit, Check } from 'lucide-react'
 import { useCanvas } from '../context/CanvasContext'
 import './nodes.css'
 
@@ -25,12 +25,14 @@ export default function YouTubeNode({ id, data, selected }) {
   // Derive initial status from already-stored data
   const hasRealTranscript = Boolean(
     data.extractedText &&
-    !data.extractedText.startsWith('YouTube video URL:') &&
+    !data.extractedText.toLowerCase().startsWith('youtube video url:') &&
     data.extractedText !== `URL: ${data.url}`
   )
   const [status, setStatus] = useState(hasRealTranscript ? 'loaded' : 'idle')
   const [errorMsg, setErrorMsg] = useState('')
   const [via, setVia] = useState(data.transcriptVia || '')
+  const [isEditing, setIsEditing] = useState(false)
+  const [manualText, setManualText] = useState(data.extractedText || '')
 
   const handleDelete = useCallback((e) => {
     e.stopPropagation()
@@ -60,11 +62,12 @@ export default function YouTubeNode({ id, data, selected }) {
         setStatus('loaded')
       } else {
         const msg = json.error || 'No transcript available'
-        setErrorMsg(msg)
+        const detail = json.detail || ''
+        setErrorMsg(detail ? `${msg} (${detail})` : msg)
         // Still store the URL so AI can reason about it
         updateNode(id, {
           data: {
-            extractedText: `YouTube Video URL: ${url}\nVideo ID: ${videoId}\nNote: Auto-transcript unavailable (${msg}). AI will summarize using training knowledge.`,
+            extractedText: `YouTube Video URL: ${url}\nVideo ID: ${videoId}\nNote: Auto-transcript unavailable (${msg}). ${detail ? `Details: ${detail}` : ''} AI will summarize using training knowledge.`,
           }
         })
         setStatus('failed')
@@ -127,15 +130,38 @@ export default function YouTubeNode({ id, data, selected }) {
               <ExternalLink size={11} />
             </a>
           )}
+          <button 
+            className={`node-action-btn ${isEditing ? 'node-action-btn--success' : ''}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (isEditing) {
+                updateNode(id, { data: { extractedText: manualText, transcriptCharCount: manualText.length, transcriptVia: 'manual' } });
+                setStatus('loaded');
+                setVia('manual');
+              }
+              setIsEditing(!isEditing);
+            }}
+            title={isEditing ? "Save Transcript" : "Edit Transcript Manually"}
+          >
+            {isEditing ? <Check size={11} /> : <Edit size={11} />}
+          </button>
           <button className="node-action-btn node-action-btn--danger" onClick={handleDelete}>
             <X size={11} />
           </button>
         </div>
       </div>
 
-      {/* Thumbnail */}
+      {/* Thumbnail or Edit Area */}
       <div className="node-preview">
-        {thumbnail ? (
+        {isEditing ? (
+          <textarea
+            className="node-edit-area"
+            value={manualText}
+            onChange={(e) => setManualText(e.target.value)}
+            placeholder="Paste transcript here..."
+            onClick={e => e.stopPropagation()}
+          />
+        ) : thumbnail ? (
           <div className="youtube-thumb-wrap">
             <img src={thumbnail} alt={data.label} className="node-preview-img" />
             <div className="youtube-play-btn">
