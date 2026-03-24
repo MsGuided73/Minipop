@@ -106,7 +106,7 @@ export default function AIAssistantNode({ id, data, selected }) {
   ]
 
   return (
-    <div className={`node ai-node ${selected ? 'node--selected' : ''}`} style={{ width: 380, height: 480 }}>
+    <div className={`node ai-node ${selected ? 'node--selected' : ''}`} style={{ width: 400, height: 500 }}>
       {/* Handles */}
       <Handle type="target" position={Position.Left} id="target" />
       <Handle type="source" position={Position.Right} id="out" />

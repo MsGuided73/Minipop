@@ -22,6 +22,7 @@ import URLNode from './nodes/URLNode'
 import DocumentNode from './nodes/DocumentNode'
 import AIAssistantNode from './nodes/AIAssistantNode'
 import AnalysisNode from './nodes/AnalysisNode'
+import PersonaNode from './nodes/PersonaNode'
 import './App.css'
 
 // Register node types
@@ -33,6 +34,7 @@ const NODE_TYPES = {
   documentNode: DocumentNode,
   aiAssistantNode: AIAssistantNode,
   analysisNode: AnalysisNode,
+  personaNode: PersonaNode,
 }
 
 function CanvasApp() {

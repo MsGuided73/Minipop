@@ -67,7 +67,7 @@ export default function AnalysisNode({ id, data, selected }) {
   }, [id, updateNode])
 
   return (
-    <div className={`node analysis-node ${selected ? 'node--selected' : ''}`} style={{ width: 420, minHeight: 400 }}>
+    <div className={`node analysis-node ${selected ? 'node--selected' : ''}`} style={{ width: 440, height: 500 }}>
       <Handle type="target" position={Position.Left} id="target" />
       <Handle type="source" position={Position.Right} id="source" />
 

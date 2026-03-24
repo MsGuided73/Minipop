@@ -57,6 +57,22 @@
 }
 ```
 
+### Persona Node Schema (Brand/Tone)
+```json
+{
+  "id": "string (uuid)",
+  "type": "persona",
+  "position": { "x": "number", "y": "number" },
+  "data": {
+    "label": "string (e.g., 'Tech Founder Voice')",
+    "tone": "string",
+    "audience": "string (ICP)",
+    "brandVoice": "string",
+    "forbidden": "string[]"
+  }
+}
+```
+
 ### Edge Schema
 ```json
 {

@@ -206,14 +206,18 @@ export function CanvasProvider({ children }) {
       .map(e => e.source === aiNodeId ? e.target : e.source)
       .filter(nodeId => nodeId !== aiNodeId)
 
-    // Exclude other AI assistant nodes (context should be data nodes only)
-    const sourceNodes = nodes.filter(
-      n => connectedNodeIds.includes(n.id) && n.type !== 'aiAssistantNode'
+    // 2. Persona Nodes (Brand Voice/Tone)
+    const personaNodes = nodes.filter(
+      n => connectedNodeIds.includes(n.id) && n.type === 'personaNode'
     )
 
-    if (sourceNodes.length === 0) return ''
+    // 3. Source Nodes (Content)
+    const sourceNodes = nodes.filter(
+      n => connectedNodeIds.includes(n.id) && n.type !== 'aiAssistantNode' && n.type !== 'personaNode'
+    )
 
-    return sourceNodes.map(node => {
+    const personaContext = personaNodes.map(node => node.data.extractedText).join('\n\n')
+    const sourceContext = sourceNodes.map(node => {
       const label = node.data.label || node.type
       let content = ''
 
@@ -249,6 +253,8 @@ export function CanvasProvider({ children }) {
 
       return `### Source: "${label}" [${node.type}]\n${content}`
     }).join('\n\n---\n\n')
+
+    return { sourceContext, personaContext }
   }, [])
 
   // ─── AI API call ───────────────────────────────────────────────────────────
@@ -260,22 +266,24 @@ export function CanvasProvider({ children }) {
       throw new Error(`No ${isGemini ? 'Gemini' : 'OpenAI'} API key set. Open ⚙️ Settings and paste your key.`)
     }
 
-    const context = buildAIContext(aiNodeId, nodes, edges)
+    const { sourceContext, personaContext } = buildAIContext(aiNodeId, nodes, edges)
 
-    const systemPrompt = context
-      ? `You are a helpful AI research assistant on a visual canvas workspace.
+    let systemPrompt = `You are a helpful AI research assistant on a visual canvas workspace.`
 
-The user has connected the following content sources to you. Read them carefully. 
+    if (personaContext) {
+      systemPrompt += `\n\n=== MANDATORY BRAND PERSONA & TONE ===\n${personaContext}\n\nYou MUST strictly follow this persona, tone, and audience targeting in your response.`
+    }
 
-=== CONNECTED SOURCES ===
-${context}
-=== END SOURCES ===
-
+    if (sourceContext) {
+      systemPrompt += `\n\n=== CONNECTED SOURCES ===\n${sourceContext}\n=== END SOURCES ===
+      
 IMPORTANT INSTRUCTION FOR YOUTUBE/URLS:
 If a connected source is a YouTube video or Website and the transcript/text is marked as "Unavailable" or "Failed to fetch", you MUST use your Google Search tool to research the video's content, summaries, and key points. Do NOT claim the content is unavailable until you have attempted a search.
 
 Answer the user's question grounded in these sources (and your search results where applicable). Be specific and cite the source label.`
-      : `You are a helpful AI assistant on a visual canvas. No content nodes are connected yet — answering as a general assistant.`
+    } else {
+      systemPrompt += `\n\nNo content nodes are connected yet — answering as a general assistant.`
+    }
 
     const aiNode = nodes.find(n => n.id === aiNodeId)
     const history = aiNode?.data?.messages || []
@@ -351,20 +359,24 @@ Answer the user's question grounded in these sources (and your search results wh
       throw new Error(`No ${isGemini ? 'Gemini' : 'OpenAI'} API key set. Open ⚙️ Settings and paste your key.`)
     }
 
-    const context = buildAIContext(aiNodeId, nodes, edges)
-    if (!context) throw new Error('No sources connected for analysis.')
+    const { sourceContext, personaContext } = buildAIContext(aiNodeId, nodes, edges)
+    if (!sourceContext && !personaContext) throw new Error('No sources or personas connected for analysis.')
 
-    const systemPrompt = `You are a Content Intelligence Specialist. 
-Your task is to perform a structured Viral Pattern Analysis on the provided source materials.
+    let systemPrompt = `You are a Content Intelligence Specialist. 
+Your task is to perform a structured Viral Pattern Analysis on the provided source materials.`
 
-=== SOURCE MATERIALS ===
-${context}
-=== END SOURCES ===
+    if (personaContext) {
+      systemPrompt += `\n\n=== MANDATORY BRAND PERSONA & TONE ===\n${personaContext}\n\nYou MUST strictly analyze the materials through the lens of this persona and its target audience.`
+    }
 
+    if (sourceContext) {
+      systemPrompt += `\n\n=== SOURCE MATERIALS ===\n${sourceContext}\n=== END SOURCES ===
+      
 IMPORTANT INSTRUCTION:
-If a YouTube video or URL source is missing a transcript or text (e.g. marked as "Failed to fetch"), you MUST use your Google Search tool to research the video title, creator, and content to extract these patterns.
+If a YouTube video or URL source is missing a transcript or text (e.g. marked as "Failed to fetch"), you MUST use your Google Search tool to research the video title, creator, and content to extract these patterns.`
+    }
 
-Analyze the materials for:
+    systemPrompt += `\n\nAnalyze the materials for:
 1. Hook Formula: How does it grab attention in the first 5-15 seconds?
 2. Retention Structure: How is pacing and tension maintained?
 3. Emotional Triggers: What emotions (awe, humor, fear, curiosity) are leveraged?
