@@ -58,6 +58,9 @@ const initialState = {
   model: localStorage.getItem('poppyai_model') || 'gpt-4o',
   settingsOpen: false,
   selectedNodes: [],
+  boardId: localStorage.getItem('poppyai_boardId') || uuidv4(),
+  boardName: localStorage.getItem('poppyai_boardName') || 'Untitled Board',
+  remoteBoards: [],
 }
 
 function canvasReducer(state, action) {
@@ -119,6 +122,23 @@ function canvasReducer(state, action) {
 
     case 'CLEAR_CANVAS':
       return { ...state, nodes: [], edges: [] }
+
+    case 'SET_BOARD_INFO':
+      localStorage.setItem('poppyai_boardId', action.id)
+      localStorage.setItem('poppyai_boardName', action.name)
+      return { ...state, boardId: action.id, boardName: action.name }
+
+    case 'SET_REMOTE_BOARDS':
+      return { ...state, remoteBoards: action.boards }
+
+    case 'LOAD_BOARD_STATE':
+      return { 
+        ...state, 
+        nodes: action.board.nodes, 
+        edges: action.board.edges, 
+        boardId: action.board.id, 
+        boardName: action.board.name 
+      }
 
     default:
       return state
@@ -452,6 +472,42 @@ If a YouTube video or URL source is missing a transcript or text (e.g. marked as
     buildAIContext,
     triggerSave,
     registerFlowSetters,
+    saveBoardToServer: async () => {
+      const payload = {
+        id: state.boardId,
+        name: state.boardName,
+        nodes: state.nodes,
+        edges: state.edges,
+        createdAt: new Date().toISOString()
+      }
+      const res = await fetch('/api/v1/boards', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      if (!res.ok) throw new Error('Cloud save failed')
+      return await res.json()
+    },
+    fetchBoardsFromServer: async () => {
+      const res = await fetch('/api/v1/boards')
+      if (res.ok) {
+        const boards = await res.json()
+        dispatch({ type: 'SET_REMOTE_BOARDS', boards })
+      }
+    },
+    loadBoardFromServer: async (id) => {
+      const res = await fetch(`/api/v1/boards/${id}`)
+      if (res.ok) {
+        const board = await res.json()
+        dispatch({ type: 'LOAD_BOARD_STATE', board })
+        // Also update React Flow if setters are registered
+        if (flowSettersRef.current.setNodes) flowSettersRef.current.setNodes(board.nodes)
+        if (flowSettersRef.current.setEdges) flowSettersRef.current.setEdges(board.edges)
+      }
+    },
+    setBoardInfo: (name, id) => {
+      dispatch({ type: 'SET_BOARD_INFO', name, id: id || state.boardId })
+    }
   }
 
   return <CanvasContext.Provider value={value}>{children}</CanvasContext.Provider>

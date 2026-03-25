@@ -11,18 +11,46 @@ const MODELS = [
 ]
 
 export default function Settings() {
-  const { state, dispatch } = useCanvas()
+  const { 
+    state, 
+    dispatch, 
+    saveBoardToServer, 
+    fetchBoardsFromServer, 
+    loadBoardFromServer, 
+    setBoardInfo 
+  } = useCanvas()
+  
   const [apiKeyInput, setApiKeyInput] = useState(state.apiKey || '')
   const [geminiKeyInput, setGeminiKeyInput] = useState(state.geminiKey || '')
+  const [localBoardName, setLocalBoardName] = useState(state.boardName || 'Untitled Board')
   const [saved, setSaved] = useState(false)
+  const [syncing, setSyncing] = useState(false)
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState(null)
+
+  React.useEffect(() => {
+    fetchBoardsFromServer()
+  }, [])
 
   const handleSave = () => {
     dispatch({ type: 'SET_API_KEY', key: apiKeyInput.trim() })
     dispatch({ type: 'SET_GEMINI_KEY', key: geminiKeyInput.trim() })
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
+  }
+
+  const handleSync = async () => {
+    setSyncing(true)
+    try {
+      await saveBoardToServer()
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2500)
+      fetchBoardsFromServer()
+    } catch (err) {
+      alert(err.message)
+    } finally {
+      setSyncing(false)
+    }
   }
 
   const handleTest = async () => {
@@ -85,11 +113,11 @@ export default function Settings() {
 
         {/* API Keys */}
         <div className="settings-section">
+          {/* ... existing API key inputs ... */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
             <div>
               <label className="settings-label">
-                <Key size={13} />
-                OpenAI API Key
+                <Key size={13} /> OpenAI API Key
               </label>
               <input
                 type="password"
@@ -101,8 +129,7 @@ export default function Settings() {
             </div>
             <div>
               <label className="settings-label">
-                <Key size={13} />
-                Google Gemini API Key
+                <Key size={13} /> Google Gemini API Key
               </label>
               <input
                 type="password"
@@ -114,30 +141,60 @@ export default function Settings() {
             </div>
           </div>
           
-          <p className="settings-hint">
-            API keys are stored locally in your browser (Base64 obfuscated) and only sent directly to model providers.
-          </p>
-          
-          <div className="settings-row">
-            <button
-              className="btn btn-ghost"
-              onClick={handleTest}
-              disabled={testing}
-            >
-              {testing ? 'Testing...' : 'Test Selected Model'}
+          <div className="settings-row" style={{ marginTop: 15 }}>
+            <button className="btn btn-ghost" onClick={handleTest} disabled={testing}>
+              {testing ? 'Testing...' : 'Test APIs'}
             </button>
-            <button
-              className={`btn btn-primary ${saved ? 'btn-success' : ''}`}
-              onClick={handleSave}
-            >
+            <button className={`btn btn-primary ${saved ? 'btn-success' : ''}`} onClick={handleSave}>
               {saved ? <><CheckCircle size={13} /> Saved!</> : <><Save size={13} /> Save Keys</>}
             </button>
           </div>
+        </div>
 
-          {testResult && (
-            <div className={`settings-test-result ${testResult.ok ? 'ok' : 'err'}`}>
-              {testResult.ok ? <CheckCircle size={13} /> : <AlertCircle size={13} />}
-              {testResult.msg}
+        {/* Cloud Knowledge Hub */}
+        <div className="settings-section">
+          <label className="settings-label">
+            <Save size={13} /> Cloud Knowledge Hub (VPS Sync)
+          </label>
+          <div style={{ display: 'flex', gap: 10, marginBottom: 15 }}>
+            <input
+              type="text"
+              className="input settings-input"
+              style={{ flex: 1 }}
+              placeholder="Board Name (e.g., Company Branding)"
+              value={localBoardName}
+              onChange={e => {
+                setLocalBoardName(e.target.value)
+                setBoardInfo(e.target.value)
+              }}
+            />
+          </div>
+          <button 
+            className={`btn btn-primary ${syncing ? 'loading' : ''}`}
+            style={{ width: '100%', justifyContent: 'center' }}
+            onClick={handleSync}
+            disabled={syncing}
+          >
+            {syncing ? 'Syncing...' : <><Save size={14} /> Sync Board to VPS</>}
+          </button>
+
+          {state.remoteBoards?.length > 0 && (
+            <div style={{ marginTop: 20 }}>
+              <p className="settings-hint" style={{ marginBottom: 10, opacity: 0.8 }}>Existing Knowledge Bases:</p>
+              <div className="remote-boards-list">
+                {state.remoteBoards.map(b => (
+                  <button 
+                    key={b.id} 
+                    className={`remote-board-item ${state.boardId === b.id ? 'active' : ''}`}
+                    onClick={() => loadBoardFromServer(b.id)}
+                  >
+                    <div className="remote-board-info">
+                      <span className="remote-board-name">{b.name}</span>
+                      <span className="remote-board-meta">ID: {b.id.slice(0, 8)}... • {new Date(b.createdAt).toLocaleDateString()}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </div>

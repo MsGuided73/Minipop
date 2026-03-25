@@ -205,3 +205,58 @@
   font-weight: 500;
   color: var(--text-secondary);
 }
+
+/* Remote Board List */
+.remote-boards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.remote-board-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-base);
+  text-align: left;
+}
+
+.remote-board-item:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-default);
+}
+
+.remote-board-item.active {
+  border-color: var(--accent-primary);
+  background: var(--accent-subtle);
+}
+
+.remote-board-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.remote-board-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.remote-board-meta {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.btn.loading {
+  opacity: 0.7;
+  cursor: wait;
+}

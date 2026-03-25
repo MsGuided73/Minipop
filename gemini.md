@@ -114,9 +114,9 @@
 - **Canvas Library**: React Flow (@xyflow/react) for node graph
 - **Styling**: Vanilla CSS (no Tailwind)
 - **AI**: OpenAI API (gpt-4o) via direct fetch calls from browser
-- **Storage**: localStorage for persistence (no backend required for MVP)
-- **File Handling**: FileReader API for local files, URL fetch for web content
-- **State**: React Context + useReducer (no Redux overhead)
+- **Storage**: localStorage for local-only MVP; Server-side JSON/Database for VPS Knowledge Hub.
+- **File Handling**: FileReader API for local files, URL fetch for web content.
+- **State**: React Context + useReducer for canvas; Server-side API for board persistence and external queries.
 
 ## 🕒 Maintenance Log
 

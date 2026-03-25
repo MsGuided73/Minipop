@@ -5,14 +5,19 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "mcp": "node mcp-server.js",
     "build": "vite build",
+    "start": "node server.js",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "@xyflow/react": "^12.3.6",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "lucide-react": "^0.469.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "@xyflow/react": "^12.3.6",
-    "lucide-react": "^0.469.0",
     "uuid": "^11.0.3"
   },
   "devDependencies": {

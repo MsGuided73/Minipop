@@ -11,13 +11,22 @@ export default defineConfig({
       name: 'transcript-api',
       configureServer(server) {
         server.middlewares.use(async (req, res, next) => {
-          if (req.url.startsWith('/api/transcript')) {
+          // Unified API v1
+          if (req.url.startsWith('/api/v1/youtube') || req.url.startsWith('/api/transcript')) {
             const url = new URL(req.url, `http://${req.headers.host}`);
-            const videoId = url.searchParams.get('videoId');
+            let videoId = url.searchParams.get('videoId');
+            const fullUrl = url.searchParams.get('url');
+
+            // If a full URL is provided, extract the videoId
+            if (!videoId && fullUrl) {
+              const match = fullUrl.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/);
+              videoId = match?.[1] || null;
+            }
             
             if (!videoId) {
               res.statusCode = 400;
-              return res.end(JSON.stringify({ error: 'Missing videoId' }));
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ error: 'Missing videoId or url' }));
             }
 
             try {
@@ -83,7 +92,11 @@ export default defineConfig({
             } catch (err) {
               console.error('Transcript Proxy Error:', err);
               res.statusCode = 500;
-              res.end(JSON.stringify({ error: 'Local fetch failed: ' + err.message }));
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ 
+                error: 'Local fetch failed: ' + err.message,
+                detail: 'Ensure yt-dlp is installed and the video is not restricted.'
+              }));
             }
             return;
           }
