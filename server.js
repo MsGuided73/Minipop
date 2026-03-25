@@ -15,6 +15,16 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
+// Simple Security: X-Poppy-Key
+// In production, set POPPY_API_KEY in your environment to protect these endpoints.
+const API_KEY = process.env.POPPY_API_KEY;
+const authMiddleware = (req, res, next) => {
+  if (API_KEY && req.headers['x-poppy-key'] !== API_KEY) {
+    return res.status(401).json({ error: 'Unauthorized: Missing or invalid X-Poppy-Key' });
+  }
+  next();
+};
+
 // Serve static files from React build (dist)
 app.use(express.static(path.join(__dirname, 'dist')));
 
@@ -22,7 +32,7 @@ app.use(express.static(path.join(__dirname, 'dist')));
  * YouTube Data API
  * Supports both /api/transcript and /api/v1/youtube (unified)
  */
-app.get(['/api/transcript', '/api/v1/youtube'], (req, res) => {
+app.get(['/api/transcript', '/api/v1/youtube'], authMiddleware, (req, res) => {
   const { videoId: queryVideoId, url: queryUrl, includeComments } = req.query;
   let videoId = queryVideoId;
 
@@ -116,14 +126,14 @@ const ensureBoardsFile = () => {
 /**
  * Boards API - Save/Load
  */
-app.get('/api/v1/boards', (req, res) => {
+app.get('/api/v1/boards', authMiddleware, (req, res) => {
   ensureBoardsFile();
   const boards = JSON.parse(fs.readFileSync(BOARDS_FILE, 'utf-8'));
   const summary = Object.values(boards).map(b => ({ id: b.id, name: b.name, createdAt: b.createdAt }));
   res.json(summary);
 });
 
-app.post('/api/v1/boards', (req, res) => {
+app.post('/api/v1/boards', authMiddleware, (req, res) => {
   ensureBoardsFile();
   const board = req.body;
   if (!board.id || !board.nodes) return res.status(400).json({ error: 'Invalid board data' });
@@ -134,7 +144,7 @@ app.post('/api/v1/boards', (req, res) => {
   res.json({ success: true, id: board.id });
 });
 
-app.get('/api/v1/boards/:id', (req, res) => {
+app.get('/api/v1/boards/:id', authMiddleware, (req, res) => {
   ensureBoardsFile();
   const boards = JSON.parse(fs.readFileSync(BOARDS_FILE, 'utf-8'));
   const board = boards[req.params.id];
@@ -146,7 +156,7 @@ app.get('/api/v1/boards/:id', (req, res) => {
  * Knowledge Query API (Embed Tool)
  * Allows external apps to "Ask" a board a question.
  */
-app.post('/api/v1/boards/:id/query', (req, res) => {
+app.post('/api/v1/boards/:id/query', authMiddleware, (req, res) => {
   ensureBoardsFile();
   const boards = JSON.parse(fs.readFileSync(BOARDS_FILE, 'utf-8'));
   const board = boards[req.params.id];
