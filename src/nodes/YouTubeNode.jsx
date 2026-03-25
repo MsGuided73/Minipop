@@ -222,6 +222,25 @@ export default function YouTubeNode({ id, data, selected }) {
         )}
       </div>
 
+      {/* Metadata Summary (if available) */}
+      {data.videoMetadata && !isEditing && (
+        <div className="youtube-node-metadata">
+          <div className="meta-row">
+            <span className="meta-label">Uploader:</span>
+            <span className="meta-value truncate">{data.videoMetadata.uploader}</span>
+          </div>
+          <div className="meta-row">
+            <span className="meta-label">Views:</span>
+            <span className="meta-value">{(data.videoMetadata.viewCount || 0).toLocaleString()}</span>
+          </div>
+          {/* Note about comments */}
+          <div className="meta-row meta-hint">
+            <MessageSquare size={10} />
+            <span>Comments skipped for speed</span>
+          </div>
+        </div>
+      )}
+
       {/* URL */}
       {data.url && (
         <div className="node-footer">

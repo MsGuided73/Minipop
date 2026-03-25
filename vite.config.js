@@ -24,9 +24,8 @@ export default defineConfig({
               const tmpDir = path.resolve(process.cwd(), '.tmp');
               if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir);
 
-              // 1. Get Metadata & Comments (JSON)
-              // We'll limit to 15 comments to keep it fast
-              const metadataCmd = `yt-dlp --dump-json --skip-download --get-comments --max-comments 15 ${videoId}`;
+              // 1. Get Metadata (JSON) - Faster without comments
+              const metadataCmd = `yt-dlp --dump-json --skip-download ${videoId}`;
               const metadataJson = JSON.parse(execSync(metadataCmd, { encoding: 'utf-8' }));
 
               const metadata = {
@@ -37,11 +36,7 @@ export default defineConfig({
                 duration: metadataJson.duration,
                 uploader: metadataJson.uploader,
                 uploadDate: metadataJson.upload_date,
-                comments: (metadataJson.comments || []).map(c => ({
-                  author: c.author,
-                  text: c.text,
-                  likeCount: c.like_count
-                }))
+                comments: [] // Temporarily disabled for speed/stability
               };
 
               // 2. Get Subtitles
