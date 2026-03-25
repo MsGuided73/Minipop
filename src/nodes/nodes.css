@@ -1004,6 +1004,84 @@
   gap: 10px;
 }
 
+/* YouTube Metadata Section */
+.youtube-node-metadata {
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.2);
+  border-top: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.meta-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 10px;
+}
+
+.meta-label {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.meta-value {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.meta-hint {
+  color: #fbbf24;
+  opacity: 0.8;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.meta-success {
+  color: #4ade80;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.sync-comments-btn {
+  margin-top: 6px;
+  background: rgba(255, 64, 112, 0.1);
+  border: 1px solid rgba(255, 64, 112, 0.3);
+  color: #ff4070;
+  font-size: 10px;
+  padding: 6px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.2s;
+  width: 100%;
+}
+
+.sync-comments-btn:hover:not(:disabled) {
+  background: rgba(255, 64, 112, 0.2);
+  border-color: #ff4070;
+  transform: translateY(-1px);
+}
+
+.sync-comments-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 /* Persona Save Button */
 .persona-save-btn {
   margin-top: 8px;

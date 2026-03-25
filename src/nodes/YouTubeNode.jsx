@@ -28,6 +28,7 @@ export default function YouTubeNode({ id, data, selected }) {
     !data.extractedText.toLowerCase().startsWith('youtube video url:') &&
     data.extractedText !== `URL: ${data.url}`
   )
+  const [fetchingComments, setFetchingComments] = useState(false)
   const [status, setStatus] = useState(hasRealTranscript ? 'loaded' : 'idle')
   const [errorMsg, setErrorMsg] = useState('')
   const [via, setVia] = useState(data.transcriptVia || '')
@@ -39,17 +40,21 @@ export default function YouTubeNode({ id, data, selected }) {
     deleteNode(id)
   }, [id, deleteNode])
 
-  const fetchTranscript = useCallback(async (url) => {
+  const fetchTranscript = useCallback(async (url, withComments = false) => {
     const videoId = getVideoId(url)
     if (!videoId) return
 
-    setStatus('loading')
+    if (!withComments) {
+      setStatus('loading')
+    }
     setErrorMsg('')
 
     try {
       // 1. Try Local Proxy first (Bypasses IP blocks via residential connection)
       try {
-        const localResponse = await fetch(`/api/transcript?videoId=${videoId}`)
+        const query = `videoId=${videoId}${withComments ? '&includeComments=true' : ''}`
+        const localResponse = await fetch(`/api/transcript?${query}`)
+        
         if (localResponse.ok) {
           const localData = await localResponse.json()
           
@@ -64,7 +69,7 @@ export default function YouTubeNode({ id, data, selected }) {
             `LOCKED TRANSCRIPT:`,
             transcript,
             `---`,
-            `AUDIENCE COMMENTS (Top 15):`,
+            meta.comments?.length > 0 ? `AUDIENCE COMMENTS (Top 20):` : `AUDIENCE COMMENTS: Not synced.`,
             (meta.comments || []).map(c => `- [${c.author}]: ${c.text}`).join('\n')
           ].join('\n\n')
 
@@ -73,13 +78,14 @@ export default function YouTubeNode({ id, data, selected }) {
               label: meta.title || data.label,
               extractedText: groundedText,
               transcriptCharCount: transcript.length,
-              transcriptVia: 'local-proxy-rich-comments',
-              metadata: meta
+              transcriptVia: withComments ? 'local-proxy-rich-comments' : 'local-proxy-fast',
+              videoMetadata: meta
             }
           })
           
-          setVia('local-proxy-rich-comments')
+          setVia(withComments ? 'local-proxy-rich-comments' : 'local-proxy-fast')
           setStatus('loaded')
+          setFetchingComments(false)
           return 
         }
       } catch (e) {
@@ -233,11 +239,31 @@ export default function YouTubeNode({ id, data, selected }) {
             <span className="meta-label">Views:</span>
             <span className="meta-value">{(data.videoMetadata.viewCount || 0).toLocaleString()}</span>
           </div>
-          {/* Note about comments */}
-          <div className="meta-row meta-hint">
-            <MessageSquare size={10} />
-            <span>Comments skipped for speed</span>
-          </div>
+          
+          {/* Comments Section / Sync Button */}
+          {data.videoMetadata.comments?.length > 0 ? (
+            <div className="meta-row meta-success">
+              <MessageSquare size={10} />
+              <span>{data.videoMetadata.comments.length} comments synced</span>
+            </div>
+          ) : (
+            <button 
+              className="sync-comments-btn" 
+              onClick={(e) => {
+                e.stopPropagation();
+                if (fetchingComments) return;
+                setFetchingComments(true);
+                fetchTranscript(data.url, true); // True to include comments
+              }}
+              disabled={fetchingComments}
+            >
+              {fetchingComments ? (
+                <><Loader size={10} className="animate-spin" /> Fetching...</>
+              ) : (
+                <><MessageSquare size={10} /> Sync Comments (Slow)</>
+              )}
+            </button>
+          )}
         </div>
       )}
 

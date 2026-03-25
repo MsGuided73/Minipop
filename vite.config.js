@@ -24,8 +24,10 @@ export default defineConfig({
               const tmpDir = path.resolve(process.cwd(), '.tmp');
               if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir);
 
-              // 1. Get Metadata (JSON) - Faster without comments
-              const metadataCmd = `yt-dlp --dump-json --skip-download ${videoId}`;
+              // 1. Get Metadata (JSON) - Optional Comments
+              const includeComments = url.searchParams.get('includeComments') === 'true';
+              const commentsFlag = includeComments ? '--get-comments --max-comments 20' : '';
+              const metadataCmd = `yt-dlp --dump-json --skip-download ${commentsFlag} ${videoId}`;
               const metadataJson = JSON.parse(execSync(metadataCmd, { encoding: 'utf-8' }));
 
               const metadata = {
@@ -36,7 +38,11 @@ export default defineConfig({
                 duration: metadataJson.duration,
                 uploader: metadataJson.uploader,
                 uploadDate: metadataJson.upload_date,
-                comments: [] // Temporarily disabled for speed/stability
+                comments: (metadataJson.comments || []).map(c => ({
+                  author: c.author,
+                  text: c.text,
+                  likeCount: c.like_count
+                }))
               };
 
               // 2. Get Subtitles
