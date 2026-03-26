@@ -13,10 +13,13 @@ Build a full-featured visual AI canvas workspace cloning PoppyAI's core function
 ## roadmap
 
 ### Phase 1: Core MVP (Ingest & Foundations)
-- [ ] Multi-format ingestion (PDF, YouTube link, Text, Images)
+- [x] Multi-format ingestion (PDF, YouTube link, Text, Images)
 - [ ] Project/Workspace management
-- [ ] Infinite Canvas foundation (@xyflow/react)
-- [ ] LocalStorage persistence engine
+- [ ] Retractable Left Sidebar (Canvas Organization)
+- [ ] Folder and Sub-folder Management
+- [ ] Save Canvas state with custom Name and Folder assignment
+- [x] Infinite Canvas foundation (@xyflow/react)
+- [ ] LocalStorage/Server persistence engine
 
 ### Phase 2: Analysis & Intelligence (The "Viral" Layer)
 - [ ] Transcript/Text extraction pipeline

@@ -13,6 +13,7 @@ import {
 import '@xyflow/react/dist/style.css'
 
 import { CanvasProvider, useCanvas } from './context/CanvasContext'
+import Sidebar from './components/Sidebar'
 import Toolbar from './components/Toolbar'
 import Settings from './components/Settings'
 import MediaNode from './nodes/MediaNode'
@@ -42,6 +43,7 @@ function CanvasApp() {
   const [nodes, setNodes, onNodesChange] = useNodesState(state.nodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(state.edges)
   const [isDraggingOver, setIsDraggingOver] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(true)
 
   const reactFlowWrapper = useRef(null)
   const reactFlowInstance = useRef(null)
@@ -203,10 +205,13 @@ function CanvasApp() {
   }, [setNodes])
 
   return (
-    <div className="app-root">
-      <Toolbar onAddNode={(type) => handleAddNode(type)} />
+    <div className="app-root flex-row">
+      <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
+      
+      <div className="app-main">
+        <Toolbar onAddNode={(type) => handleAddNode(type)} />
 
-      {state.settingsOpen && <Settings />}
+        {state.settingsOpen && <Settings />}
 
       <div
         ref={reactFlowWrapper}
@@ -293,6 +298,7 @@ function CanvasApp() {
           </div>
         )}
       </div>
+    </div>
     </div>
   )
 }

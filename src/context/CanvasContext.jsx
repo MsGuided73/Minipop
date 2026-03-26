@@ -60,7 +60,9 @@ const initialState = {
   selectedNodes: [],
   boardId: localStorage.getItem('poppyai_boardId') || uuidv4(),
   boardName: localStorage.getItem('poppyai_boardName') || 'Untitled Board',
+  folderId: localStorage.getItem('poppyai_folderId') || null,
   remoteBoards: [],
+  folders: [],
 }
 
 function canvasReducer(state, action) {
@@ -126,10 +128,23 @@ function canvasReducer(state, action) {
     case 'SET_BOARD_INFO':
       localStorage.setItem('poppyai_boardId', action.id)
       localStorage.setItem('poppyai_boardName', action.name)
-      return { ...state, boardId: action.id, boardName: action.name }
+      if (action.folderId) {
+        localStorage.setItem('poppyai_folderId', action.folderId)
+      } else {
+        localStorage.removeItem('poppyai_folderId')
+      }
+      return { 
+        ...state, 
+        boardId: action.id, 
+        boardName: action.name,
+        folderId: action.folderId || null
+      }
 
     case 'SET_REMOTE_BOARDS':
       return { ...state, remoteBoards: action.boards }
+
+    case 'SET_FOLDERS':
+      return { ...state, folders: action.folders }
 
     case 'LOAD_BOARD_STATE':
       return { 
@@ -137,7 +152,8 @@ function canvasReducer(state, action) {
         nodes: action.board.nodes, 
         edges: action.board.edges, 
         boardId: action.board.id, 
-        boardName: action.board.name 
+        boardName: action.board.name,
+        folderId: action.board.folderId || null
       }
 
     default:
@@ -476,6 +492,7 @@ If a YouTube video or URL source is missing a transcript or text (e.g. marked as
       const payload = {
         id: state.boardId,
         name: state.boardName,
+        folderId: state.folderId,
         nodes: state.nodes,
         edges: state.edges,
         createdAt: new Date().toISOString()
@@ -496,19 +513,69 @@ If a YouTube video or URL source is missing a transcript or text (e.g. marked as
       }
     },
     loadBoardFromServer: async (id) => {
+      // Clear persistence timer briefly so we don't accidentally save the old board while loading
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+      
       const res = await fetch(`/api/v1/boards/${id}`)
       if (res.ok) {
         const board = await res.json()
         dispatch({ type: 'LOAD_BOARD_STATE', board })
+        localStorage.setItem('poppyai_boardId', board.id)
+        localStorage.setItem('poppyai_boardName', board.name)
+        if (board.folderId) localStorage.setItem('poppyai_folderId', board.folderId)
+        else localStorage.removeItem('poppyai_folderId')
+        
         // Also update React Flow if setters are registered
         if (flowSettersRef.current.setNodes) flowSettersRef.current.setNodes(board.nodes)
         if (flowSettersRef.current.setEdges) flowSettersRef.current.setEdges(board.edges)
       }
     },
-    setBoardInfo: (name, id) => {
-      dispatch({ type: 'SET_BOARD_INFO', name, id: id || state.boardId })
+    setBoardInfo: (name, id, folderId = null) => {
+      dispatch({ type: 'SET_BOARD_INFO', name, id: id || state.boardId, folderId: folderId ?? state.folderId })
+    },
+    clearCanvas: () => {
+      dispatch({ type: 'CLEAR_CANVAS' })
+      if (flowSettersRef.current.setNodes) flowSettersRef.current.setNodes([])
+      if (flowSettersRef.current.setEdges) flowSettersRef.current.setEdges([])
+    },
+    // Folder API wrappers
+    fetchFoldersFromServer: async () => {
+      try {
+        const res = await fetch('/api/v1/folders')
+        if (res.ok) {
+          const folders = await res.json()
+          dispatch({ type: 'SET_FOLDERS', folders })
+        }
+      } catch (err) {
+        console.error('Failed to fetch folders:', err)
+      }
+    },
+    createFolder: async (name, parentId = null) => {
+      const payload = {
+        id: uuidv4(),
+        name,
+        parentId,
+        createdAt: new Date().toISOString()
+      }
+      const res = await fetch('/api/v1/folders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      if (!res.ok) throw new Error('Failed to create folder')
+      return payload
+    },
+    deleteFolder: async (id) => {
+      const res = await fetch(`/api/v1/folders/${id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error('Failed to delete folder')
     }
   }
+
+  // Effect to load boards and folders on mount
+  React.useEffect(() => {
+    value.fetchBoardsFromServer()
+    value.fetchFoldersFromServer()
+  }, [])
 
   return <CanvasContext.Provider value={value}>{children}</CanvasContext.Provider>
 }

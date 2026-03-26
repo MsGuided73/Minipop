@@ -24,14 +24,26 @@
 }
 ```
 
+### Folder Schema
+```json
+{
+  "id": "string",
+  "name": "string",
+  "parentId": "string | null",
+  "createdAt": "ISO"
+}
+```
+
 ### Board Schema (Visual Canvas)
 ```json
 {
   "id": "string",
   "name": "string",
+  "folderId": "string | null",
   "nodes": ["Node[]"],
   "edges": ["Edge[]"],
-  "viewport": { "x": "number", "y": "number", "zoom": "number" }
+  "viewport": { "x": "number", "y": "number", "zoom": "number" },
+  "updatedAt": "ISO"
 }
 ```
 
@@ -114,7 +126,7 @@
 - **Canvas Library**: React Flow (@xyflow/react) for node graph
 - **Styling**: Vanilla CSS (no Tailwind)
 - **AI**: OpenAI API (gpt-4o) via direct fetch calls from browser
-- **Storage**: localStorage for local-only MVP; Server-side JSON/Database for VPS Knowledge Hub.
+- **Storage**: Supabase database (OpenClaw Project) using tables prefixed with `pop_`.
 - **File Handling**: FileReader API for local files, URL fetch for web content.
 - **State**: React Context + useReducer for canvas; Server-side API for board persistence and external queries.
 

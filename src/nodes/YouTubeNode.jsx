@@ -9,7 +9,7 @@ const TRANSCRIPT_API = 'https://dfcppzpppqgphjjxypyw.supabase.co/functions/v1/yo
 
 function getVideoId(url) {
   try {
-    const match = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/)
+    const match = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?|shorts)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/)
     return match?.[1] || null
   } catch { return null }
 }
