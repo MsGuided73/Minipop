@@ -56,6 +56,7 @@ function CanvasApp() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [showMiniMap, setShowMiniMap] = useState(false)
   const [theme, setTheme] = useState(() => localStorage.getItem('contentloom-theme') || 'dark')
+  const [contextMenu, setContextMenu] = useState(null)
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
@@ -96,12 +97,21 @@ function CanvasApp() {
     }, eds))
   }, [setEdges])
 
-  // Handle right-click to delete node
+  // Handle right-click to open action menu
   const onNodeContextMenu = useCallback((e, node) => {
     e.preventDefault()
-    setNodes(nds => nds.filter(n => n.id !== node.id))
-    setEdges(eds => eds.filter(edge => edge.source !== node.id && edge.target !== node.id))
-  }, [setNodes, setEdges])
+    setContextMenu({
+      id: node.id,
+      top: e.clientY < window.innerHeight - 200 ? e.clientY : e.clientY - 150,
+      left: e.clientX < window.innerWidth - 200 ? e.clientX : e.clientX - 150,
+      node: node,
+    })
+  }, [])
+
+  // Close Context Menu when clicking empty canvas pane
+  const onPaneClick = useCallback(() => {
+    if (contextMenu) setContextMenu(null)
+  }, [contextMenu])
 
   // Get canvas position from screen coords
   const screenToCanvas = useCallback((screenX, screenY) => {
@@ -266,6 +276,7 @@ function CanvasApp() {
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           onNodeContextMenu={onNodeContextMenu}
+          onPaneClick={onPaneClick}
           onInit={(instance) => { reactFlowInstance.current = instance }}
           nodeTypes={NODE_TYPES}
           edgeTypes={EDGE_TYPES}
@@ -355,6 +366,57 @@ function CanvasApp() {
                 + Add AI Assistant
               </button>
             </div>
+          </div>
+        )}
+
+        {/* Node Context Menu */}
+        {contextMenu && (
+          <div 
+            className="context-menu" 
+            style={{ 
+              top: contextMenu.top, 
+              left: contextMenu.left, 
+              position: 'absolute', 
+              zIndex: 1000,
+              backgroundColor: 'var(--bg-surface)',
+              border: '1px solid var(--border-default)',
+              borderRadius: 'var(--radius-md)',
+              boxShadow: 'var(--shadow-lg)',
+              padding: '4px',
+              minWidth: '160px',
+              display: 'flex',
+              flexDirection: 'column',
+              fontFamily: 'var(--font-sans)',
+            }}
+          >
+            <div 
+              style={{ padding: '8px 12px', fontSize: '11px', color: 'var(--text-secondary)', borderBottom: '1px solid var(--border-default)', marginBottom: '4px', fontWeight: 600, letterSpacing: '0.5px' }}
+            >
+              {contextMenu.node.type.replace('Node', '').toUpperCase()} NODE
+            </div>
+            <button
+              onClick={() => {
+                setEdges(eds => eds.filter(e => e.source !== contextMenu.id && e.target !== contextMenu.id))
+                setContextMenu(null)
+              }}
+              style={{ textAlign: 'left', padding: '8px 12px', background: 'transparent', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
+              onMouseOver={(e) => e.target.style.backgroundColor = 'var(--bg-modifier-hover)'}
+              onMouseOut={(e) => e.target.style.backgroundColor = 'transparent'}
+            >
+              🔗 Unlink All
+            </button>
+            <button
+              onClick={() => {
+                setNodes(nds => nds.filter(n => n.id !== contextMenu.id))
+                setEdges(eds => eds.filter(e => e.source !== contextMenu.id && e.target !== contextMenu.id))
+                setContextMenu(null)
+              }}
+              style={{ textAlign: 'left', padding: '8px 12px', background: 'transparent', border: 'none', color: '#ff4d4f', cursor: 'pointer', borderRadius: '4px', marginTop: '2px', fontSize: '13px' }}
+              onMouseOver={(e) => e.target.style.backgroundColor = 'rgba(255, 77, 79, 0.1)'}
+              onMouseOut={(e) => e.target.style.backgroundColor = 'transparent'}
+            >
+              🗑️ Delete Node
+            </button>
           </div>
         )}
       </div>
