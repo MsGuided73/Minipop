@@ -24,6 +24,9 @@ import DocumentNode from './nodes/DocumentNode'
 import AIAssistantNode from './nodes/AIAssistantNode'
 import AnalysisNode from './nodes/AnalysisNode'
 import PersonaNode from './nodes/PersonaNode'
+import SemanticEdge from './components/SemanticEdge'
+import ImageGeneratorNode from './nodes/ImageGeneratorNode'
+import VoiceAgentNode from './nodes/VoiceAgentNode'
 import './App.css'
 
 // Register node types
@@ -36,6 +39,13 @@ const NODE_TYPES = {
   aiAssistantNode: AIAssistantNode,
   analysisNode: AnalysisNode,
   personaNode: PersonaNode,
+  imageGeneratorNode: ImageGeneratorNode,
+  voiceAgentNode: VoiceAgentNode,
+}
+
+// Register edge types
+const EDGE_TYPES = {
+  semantic: SemanticEdge,
 }
 
 function CanvasApp() {
@@ -44,6 +54,13 @@ function CanvasApp() {
   const [edges, setEdges, onEdgesChange] = useEdgesState(state.edges)
   const [isDraggingOver, setIsDraggingOver] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [showMiniMap, setShowMiniMap] = useState(false)
+  const [theme, setTheme] = useState(() => localStorage.getItem('contentloom-theme') || 'dark')
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    localStorage.setItem('contentloom-theme', theme)
+  }, [theme])
 
   const reactFlowWrapper = useRef(null)
   const reactFlowInstance = useRef(null)
@@ -73,10 +90,18 @@ function CanvasApp() {
   const onConnect = useCallback((params) => {
     setEdges(eds => addEdge({
       ...params,
+      type: 'semantic',
       animated: true,
       style: { stroke: 'rgba(124, 92, 252, 0.7)', strokeWidth: 2 },
     }, eds))
   }, [setEdges])
+
+  // Handle right-click to delete node
+  const onNodeContextMenu = useCallback((e, node) => {
+    e.preventDefault()
+    setNodes(nds => nds.filter(n => n.id !== node.id))
+    setEdges(eds => eds.filter(edge => edge.source !== node.id && edge.target !== node.id))
+  }, [setNodes, setEdges])
 
   // Get canvas position from screen coords
   const screenToCanvas = useCallback((screenX, screenY) => {
@@ -209,7 +234,11 @@ function CanvasApp() {
       <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
       
       <div className="app-main">
-        <Toolbar onAddNode={(type) => handleAddNode(type)} />
+        <Toolbar 
+          onAddNode={(type) => handleAddNode(type)} 
+          theme={theme}
+          onToggleTheme={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
+        />
 
         {state.settingsOpen && <Settings />}
 
@@ -236,8 +265,10 @@ function CanvasApp() {
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
+          onNodeContextMenu={onNodeContextMenu}
           onInit={(instance) => { reactFlowInstance.current = instance }}
           nodeTypes={NODE_TYPES}
+          edgeTypes={EDGE_TYPES}
           fitView={nodes.length > 0}
           minZoom={0.1}
           maxZoom={2}
@@ -256,13 +287,42 @@ function CanvasApp() {
             size={1.2}
             color="rgba(255,255,255,0.06)"
           />
-          <Controls position="bottom-right" />
-          <MiniMap
-            position="bottom-left"
-            nodeColor={(node) => getNodeMinimapColor(node.type)}
-            maskColor="rgba(10,11,15,0.8)"
-            style={{ bottom: 80 }}
-          />
+          <Controls position="bottom-left" />
+          {showMiniMap && (
+            <MiniMap
+              position="bottom-right"
+              nodeColor={(node) => getNodeMinimapColor(node.type)}
+              maskColor="rgba(10,11,15,0.8)"
+              style={{ bottom: 80, right: 24 }}
+            />
+          )}
+
+          {/* Minimap Toggle Button */}
+          <button
+            onClick={() => setShowMiniMap(!showMiniMap)}
+            style={{
+              position: 'absolute',
+              bottom: 24,
+              right: 24,
+              zIndex: 10,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 12px',
+              background: showMiniMap ? 'var(--accent-primary)' : 'var(--bg-surface)',
+              color: showMiniMap ? '#fff' : 'var(--text-primary)',
+              border: `1px solid ${showMiniMap ? 'transparent' : 'var(--border-default)'}`,
+              borderRadius: 'var(--radius-md)',
+              boxShadow: 'var(--shadow-md)',
+              cursor: 'pointer',
+              fontFamily: 'var(--font-sans)',
+              fontSize: '12px',
+              fontWeight: 500,
+              transition: 'all 0.2s ease'
+            }}
+          >
+            🗺️ {showMiniMap ? 'Hide Map' : 'Show Map'}
+          </button>
         </ReactFlow>
 
         {/* Empty state */}
@@ -389,9 +449,13 @@ function getNodeDefaults(type) {
     case 'mediaNode': return { label: 'Media', mimeType: '' }
     case 'youtubeNode': return { label: 'YouTube', url: '' }
     case 'documentNode': return { label: 'Document' }
+    case 'imageGeneratorNode': return { label: 'Image Gen', prompt: '' }
+    case 'voiceAgentNode': return { label: 'Voice Agent' }
     default: return { label: type }
   }
 }
+
+
 
 function getNodeMinimapColor(type) {
   switch (type) {

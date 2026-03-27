@@ -39,27 +39,29 @@ export default function YouTubeNode({ id, data, selected }) {
     e.stopPropagation()
     deleteNode(id)
   }, [id, deleteNode])
-
   const fetchTranscript = useCallback(async (url, withComments = false) => {
-    const videoId = getVideoId(url)
+    if (!url) return
+    const videoId = extractVideoId(url)
     if (!videoId) return
 
+    setFetchingComments(withComments)
     if (!withComments) {
       setStatus('loading')
+      setErrorMsg('')
     }
-    setErrorMsg('')
 
     try {
-      // 1. Try Local Proxy first (Bypasses IP blocks via residential connection)
+      // 1. Try Local Proxy (Fastest + Highest Rate Limits)
       try {
-        const query = `videoId=${videoId}${withComments ? '&includeComments=true' : ''}`
-        const localResponse = await fetch(`/api/transcript?${query}`)
+        // Pointing to the unified server.js running on Port 3000
+        const localProxyUrl = `http://localhost:3000/api/transcript?url=${encodeURIComponent(url)}&includeComments=${withComments}`
+        const localRes = await fetch(localProxyUrl)
         
-        if (localResponse.ok) {
-          const localData = await localResponse.json()
+        if (localRes.ok) {
+          const localData = await localRes.json()
           
           const transcript = localData.transcript || 'No transcript found (Metadata-only mode)'
-          const meta = localData.metadata || {}
+          const meta = localData.metadata || Object.assign({}, localData, { transcript: undefined }) 
           
           // Construct grounded text for AI
           const groundedText = [
@@ -69,7 +71,7 @@ export default function YouTubeNode({ id, data, selected }) {
             `LOCKED TRANSCRIPT:`,
             transcript,
             `---`,
-            meta.comments?.length > 0 ? `AUDIENCE COMMENTS (Top 20):` : `AUDIENCE COMMENTS: Not synced.`,
+            meta.comments && meta.comments.length > 0 ? `AUDIENCE COMMENTS (Top 20):` : `AUDIENCE COMMENTS: Not synced.`,
             (meta.comments || []).map(c => `- [${c.author}]: ${c.text}`).join('\n')
           ].join('\n\n')
 
@@ -87,6 +89,10 @@ export default function YouTubeNode({ id, data, selected }) {
           setStatus('loaded')
           setFetchingComments(false)
           return 
+        } else {
+           // We got a 4xx or 5xx from local proxy (probably because yt-dlp failed)
+           const errJson = await localRes.json().catch(()=>({}))
+           throw new Error(errJson.error || `Proxy failed with status ${localRes.status}`)
         }
       } catch (e) {
         console.warn('Local transcript proxy failed, falling back...', e)
@@ -127,8 +133,10 @@ export default function YouTubeNode({ id, data, selected }) {
         }
       })
       setStatus('failed')
+    } finally {
+      setFetchingComments(false)
     }
-  }, [id, updateNode])
+  }, [id, data.label, updateNode])
 
   // Auto-fetch when node loads with a URL but no real transcript yet
   useEffect(() => {
@@ -230,25 +238,27 @@ export default function YouTubeNode({ id, data, selected }) {
 
       {/* Metadata Summary (if available) */}
       {data.videoMetadata && !isEditing && (
-        <div className="youtube-node-metadata">
-          <div className="meta-row">
-            <span className="meta-label">Uploader:</span>
-            <span className="meta-value truncate">{data.videoMetadata.uploader}</span>
-          </div>
-          <div className="meta-row">
-            <span className="meta-label">Views:</span>
-            <span className="meta-value">{(data.videoMetadata.viewCount || 0).toLocaleString()}</span>
+        <div className="youtube-node-metadata" style={{ padding: '10px', background: 'var(--bg-surface-hover)', borderRadius: '6px', margin: '8px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
+            <div className="meta-box" style={{ background: 'var(--bg-surface)', padding: '6px 8px', borderRadius: '4px', border: '1px solid var(--border-color)', fontSize: '11px' }}>
+              <div style={{ color: 'var(--text-muted)', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>Uploader</div>
+              <div className="truncate" style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{data.videoMetadata.uploader}</div>
+            </div>
+            <div className="meta-box" style={{ background: 'var(--bg-surface)', padding: '6px 8px', borderRadius: '4px', border: '1px solid var(--border-color)', fontSize: '11px' }}>
+              <div style={{ color: 'var(--text-muted)', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>Views</div>
+              <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{(data.videoMetadata.viewCount || 0).toLocaleString()}</div>
+            </div>
           </div>
           
           {/* Comments Section / Sync Button */}
           {data.videoMetadata.comments?.length > 0 ? (
-            <div className="meta-row meta-success">
-              <MessageSquare size={10} />
-              <span>{data.videoMetadata.comments.length} comments synced</span>
+            <div className="meta-row meta-success" style={{ background: 'var(--bg-surface)', padding: '8px', borderRadius: '4px', border: '1px solid var(--border-color)', justifyContent: 'center' }}>
+              <MessageSquare size={12} />
+              <span style={{ fontWeight: 500, fontSize: '11px' }}>{data.videoMetadata.comments.length} Comments Synced</span>
             </div>
           ) : (
             <button 
-              className="sync-comments-btn" 
+              style={{ width: '100%', padding: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', background: 'var(--bg-surface)', border: '1px dashed var(--border-color)', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', color: 'var(--text-secondary)', transition: 'all 0.2s' }}
               onClick={(e) => {
                 e.stopPropagation();
                 if (fetchingComments) return;
@@ -258,9 +268,9 @@ export default function YouTubeNode({ id, data, selected }) {
               disabled={fetchingComments}
             >
               {fetchingComments ? (
-                <><Loader size={10} className="animate-spin" /> Fetching...</>
+                <><Loader size={12} className="animate-spin" /> Fetching Deep Context...</>
               ) : (
-                <><MessageSquare size={10} /> Sync Comments (Slow)</>
+                <><MessageSquare size={12} /> Sync Audience Comments</>
               )}
             </button>
           )}

@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Bot, Type, Globe, Image, Youtube, FileText, Trash2, Settings, Download, Upload, Plus, ChevronDown, Zap, UserSquare } from 'lucide-react'
+import { Bot, Type, Globe, Image, Youtube, FileText, Trash2, Settings, Download, Upload, Plus, ChevronDown, Zap, UserSquare, Sun, Moon, Wand2, Mic } from 'lucide-react'
 import { useCanvas } from '../context/CanvasContext'
 import './Toolbar.css'
 
@@ -11,9 +11,11 @@ const nodeTypes = [
   { type: 'youtubeNode', label: 'YouTube', icon: Youtube, color: '#ff4070', desc: 'YouTube video' },
   { type: 'analysisNode', label: 'Analysis', icon: Zap, color: '#fbbf24', desc: 'Extract viral patterns' },
   { type: 'personaNode', label: 'Persona', icon: UserSquare, color: '#ff6b6b', desc: 'Brand voice & tone' },
+  { type: 'imageGeneratorNode', label: 'Image Gen', icon: Wand2, color: '#ff8aeb', desc: 'Nano Banana 2 / GPT-img' },
+  { type: 'voiceAgentNode', label: 'Voice Agent', icon: Mic, color: '#fb923c', desc: 'Live Gemini Voice Call' },
 ]
 
-export default function Toolbar({ onAddNode }) {
+export default function Toolbar({ onAddNode, theme, onToggleTheme }) {
   const { state, dispatch } = useCanvas()
   const [addMenuOpen, setAddMenuOpen] = useState(false)
 
@@ -116,6 +118,13 @@ export default function Toolbar({ onAddNode }) {
 
       {/* Actions */}
       <div className="toolbar-actions">
+        <button 
+          className="btn-icon" 
+          onClick={onToggleTheme} 
+          title={`Switch to ${theme === 'light' ? 'Dark' : 'Light'} Mode`}
+        >
+          {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
+        </button>
         <button className="btn-icon" onClick={handleImport} title="Import canvas">
           <Upload size={15} />
         </button>

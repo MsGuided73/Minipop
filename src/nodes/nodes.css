@@ -14,7 +14,7 @@
   transition: border-color var(--transition-base), box-shadow var(--transition-base);
   font-family: var(--font-sans);
   position: relative;
-  min-width: 240px;
+  min-width: 180px;
 }
 
 /* Scrollable area utility */
@@ -493,6 +493,9 @@
   flex-direction: column;
   gap: 8px;
   cursor: default;
+  background: var(--bg-card);
+  border-radius: 4px;
+  margin: 0 8px;
 }
 
 .ai-empty-state {
@@ -579,7 +582,7 @@
 }
 
 .ai-message--assistant .ai-message-bubble {
-  background: var(--bg-elevated);
+  background: var(--bg-surface-hover);
   border: 1px solid var(--border-subtle);
   border-radius: 2px 12px 12px 12px;
   padding: 8px 10px;
@@ -653,11 +656,70 @@
   line-height: 1.4;
 }
 
-/* Input area */
+/* Voice Node & Addon Shared (Dark Frame) */
+.voice-node,
+.ai-node,
+.youtube-node {
+  background: linear-gradient(180deg, #1a1625 0%, #100e1a 100%);
+  border: 1px solid rgba(124, 92, 252, 0.3);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.05);
+  color: #fff;
+}
+
+.voice-node .node-header,
+.ai-node .node-header,
+.youtube-node .node-header {
+  border-bottom: 1px solid rgba(124, 92, 252, 0.2);
+  background: linear-gradient(90deg, rgba(124, 92, 252, 0.1), transparent);
+  color: #fff;
+}
+
+/* YouTube Specific Additions */
+.youtube-node {
+  border-color: rgba(255, 0, 0, 0.3);
+}
+
+.youtube-node .node-header {
+  background: linear-gradient(90deg, rgba(255, 0, 0, 0.1), transparent);
+  border-bottom-color: rgba(255, 0, 0, 0.2);
+}
+
+.youtube-node-metadata {
+  color: #fff;
+}
+
+.youtube-node .meta-box {
+  background: rgba(0, 0, 0, 0.2) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.youtube-node .meta-box .truncate,
+.youtube-node .meta-box div:last-child {
+  color: #fff !important;
+}
+
+.youtube-node .meta-row.meta-success {
+  background: rgba(0, 255, 0, 0.1) !important;
+  border-color: rgba(0, 255, 0, 0.2) !important;
+  color: #a7f3d0 !important;
+}
+
+.youtube-node button {
+  background: rgba(0, 0, 0, 0.2) !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
+  color: #ccc !important;
+}
+
+.youtube-node button:hover:not(:disabled) {
+  background: rgba(255, 0, 0, 0.1) !important;
+  border-color: rgba(255, 0, 0, 0.4) !important;
+  color: #fff !important;
+}
+
 .ai-input-area {
   padding: 8px;
-  border-top: 1px solid var(--border-subtle);
-  background: rgba(0,0,0,0.2);
+  border-top: 1px solid rgba(124, 92, 252, 0.2);
+  background: linear-gradient(180deg, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.4) 100%);
 }
 
 .ai-input-wrap {

@@ -49,7 +49,7 @@ FORBIDDEN: ${formData.forbidden}
   }
 
   return (
-    <div className={`node persona-node ${selected ? 'node--selected' : ''}`} style={{ width: 320, height: isEditing ? 500 : 220 }}>
+    <div className={`node persona-node ${selected ? 'node--selected' : ''}`} style={{ width: 260, height: isEditing ? 400 : 180 }}>
       {/* Target/Source handles */}
       <Handle type="target" position={Position.Left} id="target" />
       <Handle type="source" position={Position.Right} id="source" />

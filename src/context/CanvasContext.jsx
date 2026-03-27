@@ -252,9 +252,23 @@ export function CanvasProvider({ children }) {
       n => connectedNodeIds.includes(n.id) && n.type !== 'aiAssistantNode' && n.type !== 'personaNode'
     )
 
-    const personaContext = personaNodes.map(node => node.data.extractedText).join('\n\n')
+    const personaContext = personaNodes.map(node => {
+      const connectingEdge = edges.find(e => 
+        (e.source === node.id && e.target === aiNodeId) || 
+        (e.target === node.id && e.source === aiNodeId)
+      )
+      const edgeLabel = connectingEdge?.data?.label ? `[Role/Focus: ${connectingEdge.data.label}] ` : ''
+      return edgeLabel + node.data.extractedText
+    }).join('\n\n')
+
     const sourceContext = sourceNodes.map(node => {
-      const label = node.data.label || node.type
+      const connectingEdge = edges.find(e => 
+        (e.source === node.id && e.target === aiNodeId) || 
+        (e.target === node.id && e.source === aiNodeId)
+      )
+      const semanticLabel = connectingEdge?.data?.label ? ` (Relationship: ${connectingEdge.data.label})` : ''
+      
+      const label = (node.data.label || node.type) + semanticLabel
       let content = ''
 
       switch (node.type) {
@@ -477,6 +491,64 @@ If a YouTube video or URL source is missing a transcript or text (e.g. marked as
     }
   }, [buildAIContext])
 
+  const generateImage = useCallback(async (prompt, apiKey, model, geminiKey) => {
+    const isGemini = model.startsWith('gemini') || model.startsWith('nano')
+    const currentKey = isGemini ? geminiKey : apiKey
+
+    if (!currentKey) {
+      throw new Error(`No ${isGemini ? 'Gemini' : 'OpenAI'} API key set. Open ⚙️ Settings and paste your key.`)
+    }
+
+    if (isGemini) {
+      // Google Nano Banana 2 (gemini-3.1-flash-image) -> Maps to v1beta predictive endpoint for images
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image:predict?key=${currentKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          instances: [{ prompt }],
+          parameters: { sampleCount: 1 }
+        })
+      })
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}))
+        throw new Error(err.error?.message || `Nano Banana 2 error: ${response.status}`)
+      }
+
+      const data = await response.json()
+      // Fallback object depth checking based on standard google predictions
+      const b64 = data.predictions?.[0]?.bytesBase64Encoded || data.predictions?.[0]?.image?.bytesBase64Encoded || data.predictions?.[0]?.b64_json
+      if (!b64) throw new Error("No image data returned from Nano Banana 2")
+      return `data:image/png;base64,${b64}`
+    } else {
+      // OpenAI Image API (gpt-image-1)
+      const response = await fetch('https://api.openai.com/v1/images/generations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${currentKey}`,
+        },
+        body: JSON.stringify({
+          model: 'gpt-image-1',
+          prompt,
+          n: 1,
+          size: "1024x1024",
+          response_format: "b64_json"
+        }),
+      })
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}))
+        throw new Error(err.error?.message || `OpenAI Image error: ${response.status}`)
+      }
+
+      const data = await response.json()
+      const b64 = data.data?.[0]?.b64_json
+      if (!b64) throw new Error("No image data returned from OpenAI")
+      return `data:image/png;base64,${b64}`
+    }
+  }, [])
+
   const value = {
     state,
     dispatch,
@@ -485,6 +557,7 @@ If a YouTube video or URL source is missing a transcript or text (e.g. marked as
     deleteNode,
     callAI,
     analyzeViralPatterns,
+    generateImage,
     buildAIContext,
     triggerSave,
     registerFlowSetters,
@@ -594,6 +667,7 @@ function getNodeDimensions(type) {
     case 'textNode': return { width: 260, height: 160 }
     case 'urlNode': return { width: 300, height: 180 }
     case 'documentNode': return { width: 280, height: 200 }
+    case 'imageGeneratorNode': return { width: 300, height: 320 }
     default: return { width: 260, height: 160 }
   }
 }

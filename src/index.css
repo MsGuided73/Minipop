@@ -63,6 +63,43 @@
   --node-url-border: rgba(200, 100, 255, 0.4);
 }
 
+[data-theme="light"] {
+  --bg-deep: #f2efe9;
+  --bg-canvas: #faf8f5;
+  --bg-surface: #ffffff;
+  --bg-elevated: #f4f1eb;
+  --bg-card: #ffffff;
+  --bg-hover: #e8e4db;
+
+  --accent-primary: #7c5cfc;
+  --accent-secondary: #5e9fff;
+  --accent-glow: rgba(124, 92, 252, 0.2);
+  --accent-subtle: rgba(124, 92, 252, 0.1);
+
+  --text-primary: #2d2b38;
+  --text-secondary: #5c596e;
+  --text-muted: #8b889a;
+  --text-inverse: #ffffff;
+
+  --border-subtle: rgba(0, 0, 0, 0.04);
+  --border-default: rgba(0, 0, 0, 0.08);
+  --border-accent: rgba(124, 92, 252, 0.3);
+
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.12);
+  --shadow-glow: 0 0 30px rgba(124, 92, 252, 0.15);
+
+  --node-media: #f0ecfc;
+  --node-media-border: rgba(124, 92, 252, 0.4);
+  --node-ai: #ebf4ff;
+  --node-ai-border: rgba(94, 159, 255, 0.4);
+  --node-text: #eafaef;
+  --node-text-border: rgba(80, 200, 120, 0.3);
+  --node-url: #f8f0ff;
+  --node-url-border: rgba(200, 100, 255, 0.3);
+}
+
 html,
 body,
 #root {

@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react'
 import { Handle, Position, useReactFlow, useEdges } from '@xyflow/react'
-import { X, Send, Bot, User, Loader, Sparkles, RefreshCw, ChevronDown, Copy, Check, Trash2, Wand2, Globe } from 'lucide-react'
+import { X, Send, Bot, User, Loader, Sparkles, RefreshCw, ChevronDown, Copy, Check, Trash2, Wand2, Globe, Download } from 'lucide-react'
 import { useCanvas } from '../context/CanvasContext'
 import './nodes.css'
 
@@ -98,6 +98,26 @@ export default function AIAssistantNode({ id, data, selected }) {
     return buildAIContext(id, nodes, edges)
   }, [id, getNodes, getEdges, buildAIContext])
 
+  const handleExportMarkdown = useCallback((e) => {
+    e.stopPropagation()
+    const mdLines = ['# AI Assistant Synthesis\n']
+    messages.forEach(msg => {
+      mdLines.push(`### ${msg.role === 'user' ? 'User' : 'Assistant'}\n`)
+      mdLines.push(`${msg.content}\n`)
+      mdLines.push('---\n')
+    })
+    
+    const blob = new Blob([mdLines.join('\n')], { type: 'text/markdown' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `AI_Synthesis_${Date.now()}.md`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }, [messages])
+
   const quickPrompts = [
     'Identify the contents of...',
     'Brainstorm ideas from this...',
@@ -106,7 +126,7 @@ export default function AIAssistantNode({ id, data, selected }) {
   ]
 
   return (
-    <div className={`node ai-node ${selected ? 'node--selected' : ''}`} style={{ width: 400, height: 500 }}>
+    <div className={`node ai-node ${selected ? 'node--selected' : ''}`} style={{ width: 320, height: 400 }}>
       {/* Handles */}
       <Handle type="target" position={Position.Left} id="target" />
       <Handle type="source" position={Position.Right} id="out" />
@@ -127,6 +147,11 @@ export default function AIAssistantNode({ id, data, selected }) {
           </div>
         </div>
         <div className="node-actions">
+          {messages.length > 0 && (
+            <button className="node-action-btn" onClick={handleExportMarkdown} title="Download Conversation (.md)">
+              <Download size={11} />
+            </button>
+          )}
           {messages.length > 0 && (
             <button className="node-action-btn" onClick={handleClear} title="Clear chat">
               <Trash2 size={11} />
