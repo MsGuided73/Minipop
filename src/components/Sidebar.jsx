@@ -14,7 +14,8 @@ export default function Sidebar({ isOpen, onToggle }) {
     loadBoardFromServer, 
     saveBoardToServer, 
     setBoardInfo,
-    clearCanvas
+    clearCanvas,
+    dispatch
   } = useCanvas();
 
   const [expandedFolders, setExpandedFolders] = useState({});
