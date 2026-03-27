@@ -23,7 +23,7 @@ export default function Toolbar({ onAddNode }) {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = 'poppyai-canvas.json'
+    a.download = 'contentloom-canvas.json'
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -57,7 +57,7 @@ export default function Toolbar({ onAddNode }) {
         <div className="toolbar-logo-icon">
           <Bot size={16} />
         </div>
-        <span className="toolbar-logo-text">PoppyAI</span>
+        <span className="toolbar-logo-text">ContentLoom</span>
       </div>
 
       <div className="toolbar-divider" />

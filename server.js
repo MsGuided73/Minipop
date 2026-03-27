@@ -131,7 +131,7 @@ app.get(['/api/transcript', '/api/v1/youtube'], authMiddleware, (req, res) => {
   } catch (err) {
     console.error('[API Error]:', err);
     res.status(500).json({ 
-      error: 'PoppyAI was unable to fetch content: ' + err.message,
+      error: 'ContentLoom was unable to fetch content: ' + err.message,
       detail: 'Ensure yt-dlp is installed on the server and reachable.'
     });
   }
@@ -289,7 +289,7 @@ app.get(/.*/, (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 PoppyAI Production Server live at http://localhost:${PORT}`);
+  console.log(`🚀 ContentLoom Production Server live at http://localhost:${PORT}`);
   console.log(`📁 Serving static files from: ${path.join(__dirname, 'dist')}`);
   console.log(`💾 Connected to Supabase Project: ${supabaseUrl}`);
 });

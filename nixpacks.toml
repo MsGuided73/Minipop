@@ -1,0 +1,11 @@
+[providers]
+  node = true
+
+[phases.setup]
+  nixPkgs = ["...", "python3", "ffmpeg"]
+
+[phases.build]
+  cmds = ["npm install", "npm run build"]
+
+[start]
+  cmd = "npm start"

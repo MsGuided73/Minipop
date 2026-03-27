@@ -191,7 +191,7 @@ export default function Sidebar({ isOpen, onToggle }) {
         <div className="sidebar-header">
           <div className="sidebar-logo">
             <span className="sidebar-logo-icon">🧠</span>
-            <span className="sidebar-logo-text">PoppyAI</span>
+            <span className="sidebar-logo-text">ContentLoom</span>
           </div>
           <button className="sidebar-toggle-btn" onClick={onToggle}>
             <PanelLeftClose size={18} />

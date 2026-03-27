@@ -1,4 +1,4 @@
-# 📜 PoppyAI — Project Constitution (gemini.md)
+# 📜 ContentLoom — Project Constitution (gemini.md)
 
 ### User
 ```json
