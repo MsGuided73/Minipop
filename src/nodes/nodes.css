@@ -932,8 +932,7 @@
 .report-copy-btn:hover {
 /* ====== PERSONA NODE ====== */
 .persona-node {
-  background: linear-gradient(135deg, #2b1d1d 0%, #1a1515 100%);
-  border-color: rgba(255, 107, 107, 0.3);
+  border-color: rgba(255, 107, 107, 0.4);
 }
 
 .persona-node.node--selected {
@@ -942,8 +941,7 @@
 }
 
 .persona-node-header {
-  background: linear-gradient(90deg, rgba(255,107,107,0.1), rgba(255,159,64,0.05));
-  border-bottom: 1px solid rgba(255,107,107,0.2) !important;
+  border-bottom: 1px solid rgba(255,107,107,0.1) !important;
 }
 
 .node-icon--persona {
@@ -975,10 +973,10 @@
 }
 
 .preview-style-profile {
-  background: rgba(0,0,0,0.2);
-  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  border-radius: var(--radius-md);
   padding: 8px;
-  border: 1px solid var(--border-subtle);
+  border: 1px solid var(--border-default);
   margin-top: 4px;
 }
 
@@ -991,7 +989,7 @@
 
 .preview-style-profile p {
   font-size: 10px;
-  color: var(--text-muted);
+  color: var(--text-primary);
   line-height: 1.4;
   margin: 0;
 }
@@ -1013,7 +1011,7 @@
 .form-group {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
 .form-group label {
@@ -1027,13 +1025,16 @@
 .form-group input, 
 .form-group select, 
 .form-group textarea {
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  padding: 6px 8px;
+  width: 100%;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: 8px 10px;
   font-size: 12px;
+  font-family: inherit;
   color: var(--text-primary);
   outline: none;
+  resize: none;
   transition: border-color 0.2s;
 }
 
