@@ -505,8 +505,8 @@ If a YouTube video or URL source is missing a transcript or text (e.g. marked as
     }
 
     if (isGemini) {
-      // Google Nano Banana 2 (gemini-3.1-flash-image) -> Maps to v1beta predictive endpoint for images
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image:predict?key=${currentKey}`, {
+      // Google Nano Banana 2 -> Maps to real Imagen 3 API model
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${currentKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -526,7 +526,7 @@ If a YouTube video or URL source is missing a transcript or text (e.g. marked as
       if (!b64) throw new Error("No image data returned from Nano Banana 2")
       return `data:image/png;base64,${b64}`
     } else {
-      // OpenAI Image API (gpt-image-1)
+      // OpenAI Image API (DALL-E 3)
       const response = await fetch('https://api.openai.com/v1/images/generations', {
         method: 'POST',
         headers: {
@@ -534,7 +534,7 @@ If a YouTube video or URL source is missing a transcript or text (e.g. marked as
           'Authorization': `Bearer ${currentKey}`,
         },
         body: JSON.stringify({
-          model: 'gpt-image-1',
+          model: 'dall-e-3',
           prompt,
           n: 1,
           size: "1024x1024",
