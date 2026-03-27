@@ -19,9 +19,11 @@ export default function ImageGeneratorNode({ id, data, selected }) {
       const base64Image = await generateImage(prompt, state.apiKey, state.model, state.geminiKey)
       
       updateNode(id, {
-        prompt,
-        extractedText: `Generated Image Prompt: ${prompt}`,
-        preview: base64Image,
+        data: {
+          prompt,
+          extractedText: `Generated Image Prompt: ${prompt}`,
+          preview: base64Image,
+        }
       })
     } catch (err) {
       setError(err.message || 'Failed to generate image')
@@ -55,7 +57,7 @@ export default function ImageGeneratorNode({ id, data, selected }) {
             <button 
               className="btn btn-ghost" 
               style={{ width: '100%', marginTop: '8px', fontSize: '11px', display: 'flex', justifyContent: 'center', gap: '4px' }}
-              onClick={() => updateNode(id, { preview: null })}
+              onClick={() => updateNode(id, { data: { preview: null } })}
             >
               <RefreshCw size={11} /> New Image
             </button>
