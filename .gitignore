@@ -23,3 +23,7 @@ Thumbs.db
 
 # Temp files
 .tmp/
+
+# Scratchpads & Test scripts (to prevent API key leaks)
+test*.js
+test*.mjs
