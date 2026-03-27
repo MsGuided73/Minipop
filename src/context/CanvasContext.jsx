@@ -505,8 +505,8 @@ If a YouTube video or URL source is missing a transcript or text (e.g. marked as
     }
 
     if (isGemini) {
-      // Google Nano Banana 2 -> Maps to real Imagen 3 API model
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${currentKey}`, {
+      // Google Nano Banana 2 -> Maps to real Imagen 4 API model (Fast)
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-fast-generate-001:predict?key=${currentKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
