@@ -121,7 +121,13 @@ export default function VoiceAgentNode({ id, data, selected }) {
         
         let instructions = "You are a live voice AI assistant operating on a visual canvas."
         if (personaContext) instructions += `\n\nMANDATORY PERSONA:\n${personaContext}`
-        if (sourceContext) instructions += `\n\nCONNECTED SOURCES:\n${sourceContext}\n\nYou must strictly ground your responses based on these sources.`
+        if (sourceContext) {
+          instructions += `\n\nCONNECTED SOURCES:\n${sourceContext}\n\nYou must strictly ground your responses based on these connected sources.`
+          instructions += `\n\nPROACTIVE GUIDANCE & ENHANCED SUGGESTIONS:
+1. Act as an embedded intelligent guide. Always look to provide actionable, enhanced suggestions based strictly on the provided content.
+2. Anticipate the user's broader goal and outline how the curated content supports it.
+3. GAP ANALYSIS: If the currently connected sources seem insufficient or leave critical gaps to complete the desired task, explicitly ask the user if they can provide or connect additional specific information to help you finish the job completely.`
+        }
 
         ws.send(JSON.stringify({
           setup: {
