@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react'
-import { Handle, Position } from '@xyflow/react'
+import { Handle, Position, NodeResizer } from '@xyflow/react'
 import { Image as ImageIcon, Loader, Wand2, RefreshCw } from 'lucide-react'
 import { useCanvas } from '../context/CanvasContext'
 import './nodes.css'
@@ -33,7 +33,8 @@ export default function ImageGeneratorNode({ id, data, selected }) {
   }, [prompt, id, state.apiKey, state.model, state.geminiKey, generateImage, updateNode])
 
   return (
-    <div className={`node ai-node ${selected ? 'selected' : ''}`} style={{ minWidth: '320px', minHeight: '200px' }}>
+    <div className={`node ai-node ${selected ? 'selected' : ''}`} style={{ width: '100%', height: '100%', minWidth: '320px', minHeight: '340px' }}>
+      <NodeResizer minWidth={320} minHeight={340} isVisible={selected} lineClassName="border-blue-400" handleClassName="h-3 w-3 bg-white border-2 rounded" />
       <Handle type="target" position={Position.Left} className="node-handle" />
       
       {/* Header */}
