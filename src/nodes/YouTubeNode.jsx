@@ -41,7 +41,7 @@ export default function YouTubeNode({ id, data, selected }) {
   }, [id, deleteNode])
   const fetchTranscript = useCallback(async (url, withComments = false) => {
     if (!url) return
-    const videoId = extractVideoId(url)
+    const videoId = getVideoId(url)
     if (!videoId) return
 
     setFetchingComments(withComments)
