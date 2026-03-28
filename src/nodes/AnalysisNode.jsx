@@ -2,10 +2,11 @@ import React, { useState, useCallback, useMemo } from 'react'
 import { Handle, Position, useReactFlow, useEdges, useNodes } from '@xyflow/react'
 import { X, Zap, Sparkles, Copy, Check, Trash2, Brain, Loader, AlertCircle, FileText } from 'lucide-react'
 import { useCanvas } from '../context/CanvasContext'
+import { analyzeViralPatterns } from '../services/aiService'
 import './nodes.css'
 
 export default function AnalysisNode({ id, data, selected }) {
-  const { deleteNode, updateNode, callAI, analyzeViralPatterns, state } = useCanvas()
+  const { deleteNode, updateNode, state } = useCanvas()
   const { getEdges, getNodes } = useReactFlow()
   
   const [loading, setLoading] = useState(false)
@@ -52,7 +53,7 @@ export default function AnalysisNode({ id, data, selected }) {
     } finally {
       setLoading(false)
     }
-  }, [connectedSources, id, callAI, state.apiKey, state.model, getNodes, getEdges, updateNode])
+  }, [connectedSources, id, state.apiKey, state.model, state.geminiKey, getNodes, getEdges, updateNode])
 
   const handleCopy = useCallback(() => {
     if (!report) return

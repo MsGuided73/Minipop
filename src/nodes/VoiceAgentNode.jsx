@@ -2,10 +2,11 @@ import React, { useState, useCallback, useRef, useEffect } from 'react'
 import { Handle, Position, useReactFlow } from '@xyflow/react'
 import { Mic, MicOff, Loader, Phone, PhoneOff } from 'lucide-react'
 import { useCanvas } from '../context/CanvasContext'
+import { buildAIContext } from '../services/aiService'
 import './nodes.css'
 
 export default function VoiceAgentNode({ id, data, selected }) {
-  const { state, buildAIContext } = useCanvas()
+  const { state } = useCanvas()
   const { getNodes, getEdges } = useReactFlow()
   
   const [isConnected, setIsConnected] = useState(false)

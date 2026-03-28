@@ -1,6 +1,8 @@
 import express from 'express';
 import cors from 'cors';
-import { execSync } from 'child_process';
+import { exec } from 'child_process';
+import util from 'util';
+const execPromise = util.promisify(exec);
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -42,7 +44,7 @@ app.use(express.static(path.join(__dirname, 'dist')));
  * YouTube Data API
  * Supports both /api/transcript and /api/v1/youtube (unified)
  */
-app.get(['/api/transcript', '/api/v1/youtube'], authMiddleware, (req, res) => {
+app.get(['/api/transcript', '/api/v1/youtube'], authMiddleware, async (req, res) => {
   const { videoId: queryVideoId, url: queryUrl, includeComments } = req.query;
   let videoId = queryVideoId;
 
@@ -65,7 +67,8 @@ app.get(['/api/transcript', '/api/v1/youtube'], authMiddleware, (req, res) => {
     // 1. Get Metadata
     const commentsFlag = includeComments === 'true' ? '--get-comments --max-comments 20' : '';
     const metadataCmd = `yt-dlp --dump-json --skip-download ${commentsFlag} ${videoId}`;
-    const metadataJson = JSON.parse(execSync(metadataCmd, { encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024 }));
+    const { stdout: metadataStdout } = await execPromise(metadataCmd, { encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024 });
+    const metadataJson = JSON.parse(metadataStdout);
 
     const metadata = {
       title: metadataJson.title,
@@ -86,7 +89,7 @@ app.get(['/api/transcript', '/api/v1/youtube'], authMiddleware, (req, res) => {
     const outputBase = path.join(tmpDir, `prod_${videoId}`);
     const subCmd = `yt-dlp --write-auto-subs --skip-download --sub-lang en --output "${outputBase}" --quiet ${videoId}`;
     try {
-      execSync(subCmd, { encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024 });
+      await execPromise(subCmd, { encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024 });
     } catch (e) {
       console.log('[API] yt-dlp warning on subs:', e.message);
     }

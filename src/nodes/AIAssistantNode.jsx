@@ -2,10 +2,11 @@ import React, { useState, useCallback, useRef, useEffect } from 'react'
 import { Handle, Position, useReactFlow, useEdges } from '@xyflow/react'
 import { X, Send, Bot, User, Loader, Sparkles, RefreshCw, ChevronDown, Copy, Check, Trash2, Wand2, Globe, Download } from 'lucide-react'
 import { useCanvas } from '../context/CanvasContext'
+import { callAI, buildAIContext } from '../services/aiService'
 import './nodes.css'
 
 export default function AIAssistantNode({ id, data, selected }) {
-  const { deleteNode, updateNode, callAI, state, buildAIContext } = useCanvas()
+  const { deleteNode, updateNode, state } = useCanvas()
   const { getNodes, getEdges } = useReactFlow()
 
   const [input, setInput] = useState('')

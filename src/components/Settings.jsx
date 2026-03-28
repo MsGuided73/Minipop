@@ -141,6 +141,11 @@ export default function Settings() {
             </div>
           </div>
           
+          <div className="settings-disclaimer" style={{ marginTop: 15, padding: '10px', backgroundColor: 'rgba(255,165,0,0.1)', border: '1px solid rgba(255,165,0,0.3)', borderRadius: '6px', fontSize: '12px', display: 'flex', alignItems: 'flex-start', gap: '8px', color: '#ffb84d' }}>
+            <AlertCircle size={14} style={{ flexShrink: 0, marginTop: '2px' }} />
+            <span><strong>Privacy Notice:</strong> Your API keys are stored locally in your browser and are never sent to our servers. They are only sent directly to OpenAI and Google APIs when generating content.</span>
+          </div>
+
           <div className="settings-row" style={{ marginTop: 15 }}>
             <button className="btn btn-ghost" onClick={handleTest} disabled={testing}>
               {testing ? 'Testing...' : 'Test APIs'}

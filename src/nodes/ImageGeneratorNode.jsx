@@ -2,10 +2,11 @@ import React, { useState, useCallback } from 'react'
 import { Handle, Position, NodeResizer } from '@xyflow/react'
 import { Image as ImageIcon, Loader, Wand2, RefreshCw } from 'lucide-react'
 import { useCanvas } from '../context/CanvasContext'
+import { generateImage } from '../services/aiService'
 import './nodes.css'
 
 export default function ImageGeneratorNode({ id, data, selected }) {
-  const { state, updateNode, generateImage } = useCanvas()
+  const { state, updateNode } = useCanvas()
   const [prompt, setPrompt] = useState(data.prompt || '')
   const [isGenerating, setIsGenerating] = useState(false)
   const [error, setError] = useState(null)
@@ -30,7 +31,7 @@ export default function ImageGeneratorNode({ id, data, selected }) {
     } finally {
       setIsGenerating(false)
     }
-  }, [prompt, id, state.apiKey, state.model, state.geminiKey, generateImage, updateNode])
+  }, [prompt, id, state.apiKey, state.model, state.geminiKey, updateNode])
 
   return (
     <div className={`node ai-node ${selected ? 'selected' : ''}`} style={{ width: '100%', height: '100%', minWidth: '320px', minHeight: '340px' }}>
