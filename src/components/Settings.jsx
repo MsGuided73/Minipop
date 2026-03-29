@@ -42,7 +42,7 @@ export default function Settings() {
   const handleSync = async () => {
     setSyncing(true)
     try {
-      await saveBoardToServer()
+      await saveBoardToServer(localBoardName)
       setSaved(true)
       setTimeout(() => setSaved(false), 2500)
       fetchBoardsFromServer()

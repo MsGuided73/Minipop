@@ -88,7 +88,7 @@ export default function Sidebar({ isOpen, onToggle }) {
     }
     
     try {
-      await saveBoardToServer();
+      await saveBoardToServer(name, state.folderId);
       // Need a small delay before state updates can be completely relied upon without forcing a re-fetch manually
       // though saveBoard returns the board. We'll just re-fetch boards.
       const res = await fetch('/api/v1/boards');

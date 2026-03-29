@@ -166,13 +166,13 @@ export function CanvasProvider({ children }) {
     deleteNode,
     triggerSave,
     registerFlowInstance,
-    saveBoardToServer: async () => {
+    saveBoardToServer: async (overrideName, overrideFolderId) => {
       const nodes = flowInstanceRef.current?.getNodes() || []
       const edges = flowInstanceRef.current?.getEdges() || []
       const payload = {
         id: state.boardId,
-        name: state.boardName,
-        folderId: state.folderId,
+        name: overrideName || state.boardName,
+        folderId: overrideFolderId !== undefined ? overrideFolderId : state.folderId,
         nodes: nodes,
         edges: edges,
         createdAt: new Date().toISOString()
