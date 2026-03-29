@@ -2,7 +2,7 @@ import React, { useState, useCallback, useMemo } from 'react'
 import { Handle, Position, useReactFlow, useEdges, useNodes } from '@xyflow/react'
 import { X, GitCompare, Copy, Check, Trash2, Loader, AlertCircle, FileText, RefreshCw, Sparkles, Table2 } from 'lucide-react'
 import { useCanvas } from '../context/CanvasContext'
-import { generateCrossReference, generateCrossReferenceTable } from '../services/aiService'
+import { generateCrossReference, generateCrossReferenceTable, resolveConnectedNodeIds } from '../services/aiService'
 import './nodes.css'
 
 export default function CrossReferenceNode({ id, data, selected }) {
@@ -23,12 +23,10 @@ export default function CrossReferenceNode({ id, data, selected }) {
 
   // Find connected source nodes
   const connectedSources = useMemo(() => {
-    const edgeIds = allEdges
-      .filter(e => e.target === id || e.source === id)
-      .map(e => e.target === id ? e.source : e.target)
-    
+    const edgeIds = resolveConnectedNodeIds(id, allNodes, allEdges)
     return allNodes.filter(n => edgeIds.includes(n.id) && n.type !== 'aiAssistantNode' && n.type !== 'analysisNode' && n.type !== 'crossReferenceNode')
   }, [allEdges, allNodes, id])
+
 
   const handleDelete = useCallback((e) => {
     e.stopPropagation()

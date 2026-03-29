@@ -25,6 +25,7 @@ import AIAssistantNode from './nodes/AIAssistantNode'
 import AnalysisNode from './nodes/AnalysisNode'
 import CrossReferenceNode from './nodes/CrossReferenceNode'
 import PersonaNode from './nodes/PersonaNode'
+import GroupNode from './nodes/GroupNode'
 import SemanticEdge from './components/SemanticEdge'
 import ImageGeneratorNode from './nodes/ImageGeneratorNode'
 import VoiceAgentNode from './nodes/VoiceAgentNode'
@@ -41,6 +42,7 @@ const NODE_TYPES = {
   analysisNode: AnalysisNode,
   crossReferenceNode: CrossReferenceNode,
   personaNode: PersonaNode,
+  groupNode: GroupNode,
   imageGeneratorNode: ImageGeneratorNode,
   voiceAgentNode: VoiceAgentNode,
 }
@@ -141,6 +143,7 @@ function CanvasApp() {
       type,
       position: pos,
       data: defaults,
+      ...(type === 'groupNode' ? { style: { width: 400, height: 300, zIndex: -1 } } : {})
     }
     setNodes(nds => [...nds, newNode])
     return id
@@ -515,6 +518,7 @@ function getNodeDefaults(type) {
     case 'crossReferenceNode': return { label: 'Cross-Reference Matrix' }
     case 'imageGeneratorNode': return { label: 'Image Gen', prompt: '' }
     case 'voiceAgentNode': return { label: 'Voice Agent' }
+    case 'groupNode': return { label: 'Grouping Window' }
     default: return { label: type }
   }
 }
@@ -529,6 +533,7 @@ function getNodeMinimapColor(type) {
     case 'urlNode': return '#60a5fa'
     case 'documentNode': return '#fbbf24'
     case 'crossReferenceNode': return '#ec4899'
+    case 'groupNode': return '#7c5cfc'
     default: return '#a78bfa'
   }
 }

@@ -1,10 +1,11 @@
 import React, { useState } from 'react'
-import { Bot, Type, Globe, Image, Youtube, FileText, Trash2, Settings, Download, Upload, Plus, ChevronDown, Zap, UserSquare, Sun, Moon, Wand2, Mic, GitCompare } from 'lucide-react'
+import { Bot, Type, Globe, Image, Youtube, FileText, Trash2, Settings, Download, Upload, Plus, ChevronDown, Zap, UserSquare, Sun, Moon, Wand2, Mic, GitCompare, Layers } from 'lucide-react'
 import { useCanvas } from '../context/CanvasContext'
 import './Toolbar.css'
 
 const nodeTypes = [
   { type: 'aiAssistantNode', label: 'AI Assistant', icon: Bot, color: '#7c5cfc', desc: 'Chat + synthesize' },
+  { type: 'groupNode', label: 'Grouping Window', icon: Layers, color: '#7c5cfc', desc: 'Spatial Context Group' },
   { type: 'textNode', label: 'Text Note', icon: Type, color: '#4ade80', desc: 'Add text/notes' },
   { type: 'urlNode', label: 'Web Link', icon: Globe, color: '#60a5fa', desc: 'Link any URL' },
   { type: 'mediaNode', label: 'Media', icon: Image, color: '#a78bfa', desc: 'Image or video' },

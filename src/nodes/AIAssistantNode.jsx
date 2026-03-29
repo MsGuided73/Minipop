@@ -1,8 +1,8 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react'
-import { Handle, Position, useReactFlow, useEdges } from '@xyflow/react'
+import { Handle, Position, useReactFlow, useEdges, useNodes } from '@xyflow/react'
 import { X, Send, Bot, User, Loader, Sparkles, RefreshCw, ChevronDown, Copy, Check, Trash2, Wand2, Globe, Download } from 'lucide-react'
 import { useCanvas } from '../context/CanvasContext'
-import { callAI, buildAIContext } from '../services/aiService'
+import { callAI, buildAIContext, resolveConnectedNodeIds } from '../services/aiService'
 import './nodes.css'
 
 export default function AIAssistantNode({ id, data, selected }) {
@@ -23,9 +23,8 @@ export default function AIAssistantNode({ id, data, selected }) {
   useEffect(() => { messagesRef.current = messages }, [messages])
 
   const allEdges = useEdges()
-  const connectedSources = allEdges.filter(
-    e => (e.source === id || e.target === id)
-  ).length
+  const allNodes = useNodes()
+  const connectedSources = resolveConnectedNodeIds(id, allNodes, allEdges).length
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })

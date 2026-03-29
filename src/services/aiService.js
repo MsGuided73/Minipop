@@ -1,14 +1,56 @@
 // src/services/aiService.js
 
 /**
- * Builds the AI context string (source material + persona) from the React Flow nodes and edges.
+ * Resolves all connected node IDs, including spatial inclusion via Group Nodes.
  */
-export function buildAIContext(aiNodeId, nodes, edges) {
-  // Bidirectional: find nodes connected in either direction
-  const connectedNodeIds = edges
+export function resolveConnectedNodeIds(aiNodeId, nodes, edges) {
+  let connectedNodeIds = edges
     .filter(e => e.source === aiNodeId || e.target === aiNodeId)
     .map(e => e.source === aiNodeId ? e.target : e.source)
     .filter(nodeId => nodeId !== aiNodeId)
+
+  const connectedGroupNodes = nodes.filter(n => connectedNodeIds.includes(n.id) && n.type === 'groupNode')
+
+  const isInside = (child, parent) => {
+    if (!child.position || !parent.position) return false
+    const cw = child.measured?.width || child.width || 300
+    const ch = child.measured?.height || child.height || 150
+    const pw = parent.measured?.width || parent.style?.width || parent.width || 400
+    const ph = parent.measured?.height || parent.style?.height || parent.height || 300
+    
+    const cx = child.position.x + cw / 2
+    const cy = child.position.y + ch / 2
+    
+    return (
+      cx >= parent.position.x &&
+      cx <= parent.position.x + pw &&
+      cy >= parent.position.y &&
+      cy <= parent.position.y + ph
+    )
+  }
+
+  connectedGroupNodes.forEach(groupNode => {
+    nodes.forEach(node => {
+      if (node.id !== aiNodeId && node.id !== groupNode.id && !connectedNodeIds.includes(node.id)) {
+        if (isInside(node, groupNode)) {
+          connectedNodeIds.push(node.id)
+        }
+      }
+    })
+  })
+
+  // Filter out the group nodes from the final count of actual content
+  return connectedNodeIds.filter(id => {
+    const node = nodes.find(n => n.id === id)
+    return node && node.type !== 'groupNode'
+  })
+}
+
+/**
+ * Builds the AI context string (source material + persona) from the React Flow nodes and edges.
+ */
+export function buildAIContext(aiNodeId, nodes, edges) {
+  const connectedNodeIds = resolveConnectedNodeIds(aiNodeId, nodes, edges)
 
   const personaNodes = nodes.filter(
     n => connectedNodeIds.includes(n.id) && n.type === 'personaNode'
