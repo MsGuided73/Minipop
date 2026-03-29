@@ -1,8 +1,8 @@
 import React, { useState, useCallback, useMemo } from 'react'
 import { Handle, Position, useReactFlow, useEdges, useNodes } from '@xyflow/react'
-import { X, GitCompare, Copy, Check, Trash2, Loader, AlertCircle, FileText, RefreshCw, Sparkles } from 'lucide-react'
+import { X, GitCompare, Copy, Check, Trash2, Loader, AlertCircle, FileText, RefreshCw, Sparkles, Table2 } from 'lucide-react'
 import { useCanvas } from '../context/CanvasContext'
-import { generateCrossReference } from '../services/aiService'
+import { generateCrossReference, generateCrossReferenceTable } from '../services/aiService'
 import './nodes.css'
 
 export default function CrossReferenceNode({ id, data, selected }) {
@@ -10,11 +10,13 @@ export default function CrossReferenceNode({ id, data, selected }) {
   const { getEdges, getNodes } = useReactFlow()
   
   const [loading, setLoading] = useState(false)
+  const [tableLoading, setTableLoading] = useState(false)
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
 
   // Report content
   const report = data.report || ''
+  const tableData = data.tableData || ''
   
   const allEdges = useEdges()
   const allNodes = useNodes()
@@ -47,13 +49,28 @@ export default function CrossReferenceNode({ id, data, selected }) {
       const edges = getEdges()
       const response = await generateCrossReference(id, nodes, edges, state.apiKey, state.model, state.geminiKey)
       
-      updateNode(id, { data: { report: response } })
+      updateNode(id, { data: { ...data, report: response, tableData: '' } })
     } catch (err) {
       setError(err.message)
     } finally {
       setLoading(false)
     }
-  }, [connectedSources, id, state.apiKey, state.model, state.geminiKey, getNodes, getEdges, updateNode])
+  }, [connectedSources, id, data, state.apiKey, state.model, state.geminiKey, getNodes, getEdges, updateNode])
+
+  const handleGenerateTable = useCallback(async () => {
+    if (!report) return
+    setTableLoading(true)
+    setError('')
+    
+    try {
+      const response = await generateCrossReferenceTable(report, state.apiKey, state.model, state.geminiKey)
+      updateNode(id, { data: { ...data, tableData: response } })
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setTableLoading(false)
+    }
+  }, [report, id, data, state.apiKey, state.model, state.geminiKey, updateNode])
 
   const handleCopy = useCallback(() => {
     if (!report) return
@@ -64,8 +81,8 @@ export default function CrossReferenceNode({ id, data, selected }) {
 
   const handleClear = useCallback((e) => {
     e.stopPropagation()
-    updateNode(id, { data: { report: '' } })
-  }, [id, updateNode])
+    updateNode(id, { data: { ...data, report: '', tableData: '' } })
+  }, [id, data, updateNode])
 
   const renderMarkdownTable = (md) => {
     // Quick and dirty markdown table rendering
@@ -194,18 +211,44 @@ export default function CrossReferenceNode({ id, data, selected }) {
                 {copied ? 'Copied' : 'Copy'}
               </button>
             </div>
-            <div className="report-body">
-              {renderMarkdownTable(report)}
+            <div className="report-body" style={{ whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>
+              {report}
             </div>
+
+            {tableLoading && (
+              <div className="analysis-loading" style={{ marginTop: 15, padding: 15, background: 'rgba(0,0,0,0.2)', borderRadius: 6, border: '1px solid rgba(255,255,255,0.05)' }}>
+                <div className="ai-typing"><span /><span /><span /></div>
+                <p style={{ margin: 0, marginTop: 10, fontSize: '0.85rem' }}>Structuring data into table...</p>
+              </div>
+            )}
+
+            {tableData && !tableLoading && (
+              <div className="cr-report" style={{ marginTop: 20, borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 15 }}>
+                <div className="report-header" style={{ marginBottom: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                     <Table2 size={14} />
+                     <span>Structured Table</span>
+                  </div>
+                </div>
+                <div className="report-body">
+                  {renderMarkdownTable(tableData)}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
 
       {report && !loading && (
-        <div className="analysis-footer">
+        <div className="analysis-footer" style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
           <button className="btn btn-ghost btn-sm" onClick={handleRunAnalysis}>
             <RefreshCw size={12} /> Re-analyze
           </button>
+          {!tableData && (
+             <button className="btn btn-primary btn-sm" onClick={handleGenerateTable} disabled={tableLoading} style={{ padding: '4px 12px' }}>
+               <Table2 size={12} /> Generate Table
+             </button>
+          )}
         </div>
       )}
     </div>

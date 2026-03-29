@@ -51,7 +51,7 @@ const EDGE_TYPES = {
 }
 
 function CanvasApp() {
-  const { state, dispatch, addNode, triggerSave, registerFlowSetters } = useCanvas()
+  const { state, dispatch, addNode, triggerSave, registerFlowInstance } = useCanvas()
   const [nodes, setNodes, onNodesChange] = useNodesState(state.nodes || [])
   const [edges, setEdges, onEdgesChange] = useEdgesState(state.edges || [])
   const [isDraggingOver, setIsDraggingOver] = useState(false)
@@ -68,11 +68,7 @@ function CanvasApp() {
   const reactFlowWrapper = useRef(null)
   const reactFlowInstance = useRef(null)
 
-  // ── CRITICAL: Give the context direct access to React Flow's setNodes/setEdges
-  // This is what allows updateNode() to make the AI response actually render.
-  useEffect(() => {
-    registerFlowSetters(setNodes, setEdges)
-  }, [setNodes, setEdges, registerFlowSetters])
+  // ── CRITICAL: React Flow instance is now registered in onInit
 
   // Keep context mirror and auto-save in sync with React Flow state
   useEffect(() => {
@@ -279,7 +275,10 @@ function CanvasApp() {
           onConnect={onConnect}
           onNodeContextMenu={onNodeContextMenu}
           onPaneClick={onPaneClick}
-          onInit={(instance) => { reactFlowInstance.current = instance }}
+          onInit={(instance) => { 
+            reactFlowInstance.current = instance;
+            registerFlowInstance(instance);
+          }}
           nodeTypes={NODE_TYPES}
           edgeTypes={EDGE_TYPES}
           fitView={nodes.length > 0}

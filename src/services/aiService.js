@@ -290,21 +290,19 @@ Your task is to analyze the provided source materials and generate a rigorously 
   }
 
   systemPrompt += `\n\nAnalyze the materials specifically for:
-1. Overlapping Factual Claims (where sources agree).
-2. Direct Contradictions (where sources conflict).
-3. Underlying Assumptions (unproven premises the sources rely upon).
-4. Logic/Evidence Gaps (what is missing from the arguments).
+1. Overlapping Factual Claims (where sources agree) vs. Direct Contradictions (where they conflict).
+2. Underlying Assumptions & Logical Fallacies (e.g., strawman, ad hominem, false equivalence, non sequitur).
+3. LOGIC/EVIDENCE GAPS: You MUST actively hunt down and expose logic gaps. Do NOT gloss over or skip them. Point out exactly what evidence is missing, what leaps of logic are made, or where the argument breaks down.
+4. INFLAMMATORY LANGUAGE & PUSHED NARRATIVE: Highlight loaded, emotional, or manipulative rhetoric, and explicitly state the underlying narrative or agenda the author is pushing.
 
 FORMAT REQUIREMENT:
-You MUST output your final analysis as a markdown table with exactly these columns:
-| Topic/Entity | Source Claim (with Source Name) | Conflicting/Agreeing Claim (with Source Name) | Assumptions Made | Logic/Evidence Gaps | Status (Agree/Conflict/Unique) |
-
-Do not summarize outside the table unless necessary to explain a highly complex nuance. Ensure strict factual mapping directly to the source names.`
+You MUST output your final analysis as a detailed Markdown Report, divided into clear headings corresponding to the criteria above. Use bullet points, bold text, and blockquotes to make the investigative report easy to digest and highly structured.
+Do NOT format as a table - provide a comprehensive, long-form narrative analysis.`
 
   if (isGemini) {
     const contents = [
       { role: 'user', parts: [{ text: systemPrompt }] },
-      { role: 'user', parts: [{ text: 'Generate the Cross-Reference Matrix.' }] }
+      { role: 'user', parts: [{ text: 'Generate the structured investigative Cross-Reference Report.' }] }
     ]
 
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${currentKey}`, {
@@ -327,7 +325,7 @@ Do not summarize outside the table unless necessary to explain a highly complex 
   } else {
     const messages = [
       { role: 'system', content: systemPrompt },
-      { role: 'user', content: 'Generate the Cross-Reference Matrix.' },
+      { role: 'user', content: 'Generate the structured investigative Cross-Reference Report.' },
     ]
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -341,6 +339,76 @@ Do not summarize outside the table unless necessary to explain a highly complex 
         messages,
         temperature: 0.2, // Lower temperature for more analytical/factual extraction
         max_completion_tokens: 3000,
+      }),
+    })
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      throw new Error(err.error?.message || `OpenAI API error: ${response.status}`)
+    }
+
+    const data = await response.json()
+    return data.choices[0]?.message?.content || ''
+  }
+}
+
+/**
+ * Converts a generated textual Cross-Reference Report into a strict Markdown table.
+ */
+export async function generateCrossReferenceTable(reportText, apiKey, model, geminiKey) {
+  const isGemini = model.startsWith('gemini')
+  const currentKey = isGemini ? geminiKey : apiKey
+
+  if (!currentKey) {
+    throw new Error(`No ${isGemini ? 'Gemini' : 'OpenAI'} API key set. Open ⚙️ Settings and paste your key.`)
+  }
+
+  const systemPrompt = `You are an expert Data Structurer. Your task is to extract the findings from the provided investigative report and convert them STRICTLY into a Markdown table.
+Do not add any new analysis, just format the existing findings.
+
+FORMAT REQUIREMENT:
+You MUST output ONLY a markdown table with exactly these columns:
+| Topic/Entity | Competing Claims & Sources | Assumptions & Fallacies | Logic & Evidence Gaps | Narrative & Rhetoric | Status (Agree/Conflict) |`
+
+  if (isGemini) {
+    const contents = [
+      { role: 'user', parts: [{ text: systemPrompt }] },
+      { role: 'user', parts: [{ text: `Here is the report to convert:\n\n${reportText}\n\nGenerate the Markdown table.` }] }
+    ]
+
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${currentKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        contents, 
+        generationConfig: { temperature: 0.1 }
+      }),
+    })
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      throw new Error(err.error?.message || `Gemini API error: ${response.status}`)
+    }
+
+    const data = await response.json()
+    return data.candidates[0]?.content?.parts[0]?.text || ''
+  } else {
+    const messages = [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: `Here is the report to convert:\n\n${reportText}\n\nGenerate the Markdown table.` },
+    ]
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${currentKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature: 0.1,
+        max_completion_tokens: 2000,
       }),
     })
 
