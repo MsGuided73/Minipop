@@ -105,6 +105,7 @@
 .node-icon--text { background: rgba(80, 200, 120, 0.15); color: #4ade80; }
 .node-icon--url { background: rgba(100, 170, 255, 0.15); color: #60a5fa; }
 .node-icon--document { background: rgba(250, 200, 80, 0.15); color: #fbbf24; }
+.node-icon--cr { background: rgba(236, 72, 153, 0.15); color: #ec4899; }
 .node-icon--ai {
   background: linear-gradient(135deg, rgba(124,92,252,0.3), rgba(94,159,255,0.3));
   color: #a78bfa;
@@ -788,6 +789,82 @@
 /* Shared spin animation */
 .spin {
   animation: spin 1s linear infinite;
+}
+
+/* ====== VOICE AGENT NODE ====== */
+.voice-agent-node {
+  background: linear-gradient(180deg, #1f1209 0%, #170d07 100%);
+  border-color: rgba(251, 146, 60, 0.3);
+}
+
+.voice-agent-node-header {
+  background: linear-gradient(90deg, rgba(251, 146, 60, 0.15), rgba(255, 100, 0, 0.05));
+  border-bottom-color: rgba(251, 146, 60, 0.2);
+}
+
+/* ====== CROSS REFERENCE NODE ====== */
+.cr-node {
+  background: linear-gradient(180deg, #1f111a 0%, #150b12 100%);
+  border-color: rgba(236, 72, 153, 0.3);
+}
+
+.cr-node-header {
+  background: linear-gradient(90deg, rgba(236, 72, 153, 0.15), rgba(255, 80, 150, 0.05));
+  border-bottom-color: rgba(236, 72, 153, 0.2);
+}
+
+.cr-report {
+  margin-top: 10px;
+  background: rgba(0,0,0,0.2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.cr-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.cr-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+  font-family: var(--font-sans);
+  text-align: left;
+}
+
+.cr-table th {
+  background: rgba(236, 72, 153, 0.1);
+  color: #ec4899;
+  padding: 8px 10px;
+  font-weight: 600;
+  border-bottom: 1px solid rgba(236, 72, 153, 0.2);
+  white-space: nowrap;
+}
+
+.cr-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  vertical-align: top;
+  min-width: 120px;
+}
+
+.cr-table tr:last-child td {
+  border-bottom: none;
+}
+
+.status-conflict {
+  color: #ff4d4f !important;
+  background: rgba(255, 77, 79, 0.05);
+  font-weight: 500;
+}
+
+.status-agree {
+  color: #4ade80 !important;
+  background: rgba(74, 222, 128, 0.05);
+  font-weight: 500;
 }
 
 /* ====== ANALYSIS NODE ====== */

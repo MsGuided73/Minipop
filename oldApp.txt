@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState, useEffect } from 'react'
+﻿import React, { useCallback, useRef, useState, useEffect } from 'react'
 import {
   ReactFlow,
   Background,
@@ -23,7 +23,6 @@ import URLNode from './nodes/URLNode'
 import DocumentNode from './nodes/DocumentNode'
 import AIAssistantNode from './nodes/AIAssistantNode'
 import AnalysisNode from './nodes/AnalysisNode'
-import CrossReferenceNode from './nodes/CrossReferenceNode'
 import PersonaNode from './nodes/PersonaNode'
 import SemanticEdge from './components/SemanticEdge'
 import ImageGeneratorNode from './nodes/ImageGeneratorNode'
@@ -39,7 +38,6 @@ const NODE_TYPES = {
   documentNode: DocumentNode,
   aiAssistantNode: AIAssistantNode,
   analysisNode: AnalysisNode,
-  crossReferenceNode: CrossReferenceNode,
   personaNode: PersonaNode,
   imageGeneratorNode: ImageGeneratorNode,
   voiceAgentNode: VoiceAgentNode,
@@ -52,8 +50,8 @@ const EDGE_TYPES = {
 
 function CanvasApp() {
   const { state, dispatch, addNode, triggerSave, registerFlowSetters } = useCanvas()
-  const [nodes, setNodes, onNodesChange] = useNodesState(state.nodes || [])
-  const [edges, setEdges, onEdgesChange] = useEdgesState(state.edges || [])
+  const [nodes, setNodes, onNodesChange] = useNodesState(state.nodes)
+  const [edges, setEdges, onEdgesChange] = useEdgesState(state.edges)
   const [isDraggingOver, setIsDraggingOver] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [showMiniMap, setShowMiniMap] = useState(false)
@@ -68,7 +66,7 @@ function CanvasApp() {
   const reactFlowWrapper = useRef(null)
   const reactFlowInstance = useRef(null)
 
-  // ── CRITICAL: Give the context direct access to React Flow's setNodes/setEdges
+  // ΓöÇΓöÇ CRITICAL: Give the context direct access to React Flow's setNodes/setEdges
   // This is what allows updateNode() to make the AI response actually render.
   useEffect(() => {
     registerFlowSetters(setNodes, setEdges)
@@ -83,9 +81,9 @@ function CanvasApp() {
 
   // Load persisted nodes on first mount
   useEffect(() => {
-    if (state.nodes?.length > 0 && nodes.length === 0) {
+    if (state.nodes.length > 0 && nodes.length === 0) {
       setNodes(state.nodes)
-      setEdges(state.edges || [])
+      setEdges(state.edges)
     }
   }, [])
 
@@ -179,7 +177,7 @@ function CanvasApp() {
       return
     }
 
-    // Handle file drops — place in a grid if multiple
+    // Handle file drops ΓÇö place in a grid if multiple
     const cols = Math.ceil(Math.sqrt(files.length))
     const spacing = { x: 320, y: 240 }
     const basePos = screenToCanvas(e.clientX, e.clientY)
@@ -264,9 +262,9 @@ function CanvasApp() {
         {isDraggingOver && (
           <div className="drop-overlay">
             <div className="drop-overlay-content">
-              <div className="drop-overlay-icon">📎</div>
+              <div className="drop-overlay-icon">≡ƒôÄ</div>
               <p className="drop-overlay-text">Drop files or URLs onto the canvas</p>
-              <p className="drop-overlay-hint">Images, videos, PDFs, documents, YouTube links…</p>
+              <p className="drop-overlay-hint">Images, videos, PDFs, documents, YouTube linksΓÇª</p>
             </div>
           </div>
         )}
@@ -334,7 +332,7 @@ function CanvasApp() {
               transition: 'all 0.2s ease'
             }}
           >
-            🗺️ {showMiniMap ? 'Hide Map' : 'Show Map'}
+            ≡ƒù║∩╕Å {showMiniMap ? 'Hide Map' : 'Show Map'}
           </button>
         </ReactFlow>
 
@@ -342,23 +340,23 @@ function CanvasApp() {
         {nodes.length === 0 && !isDraggingOver && (
           <div className="canvas-empty">
             <div className="canvas-empty-card">
-              <div className="canvas-empty-emoji">🧠</div>
+              <div className="canvas-empty-emoji">≡ƒºá</div>
               <h2 className="canvas-empty-title">Your AI Canvas</h2>
               <p className="canvas-empty-desc">
                 Drag & drop files here, paste URLs, or add nodes from the toolbar
               </p>
               <div className="canvas-empty-hints">
                 <div className="canvas-empty-hint">
-                  <span>📁</span> Drop images, videos, PDFs
+                  <span>≡ƒôü</span> Drop images, videos, PDFs
                 </div>
                 <div className="canvas-empty-hint">
-                  <span>🔗</span> Paste YouTube or web URLs
+                  <span>≡ƒöù</span> Paste YouTube or web URLs
                 </div>
                 <div className="canvas-empty-hint">
-                  <span>🤖</span> Add AI Assistant nodes to synthesize
+                  <span>≡ƒñû</span> Add AI Assistant nodes to synthesize
                 </div>
                 <div className="canvas-empty-hint">
-                  <span>↔️</span> Connect nodes with drag handles
+                  <span>Γåö∩╕Å</span> Connect nodes with drag handles
                 </div>
               </div>
               <button
@@ -405,7 +403,7 @@ function CanvasApp() {
               onMouseOver={(e) => e.target.style.backgroundColor = 'var(--bg-modifier-hover)'}
               onMouseOut={(e) => e.target.style.backgroundColor = 'transparent'}
             >
-              🔗 Unlink All
+              ≡ƒöù Unlink All
             </button>
             <button
               onClick={() => {
@@ -417,7 +415,7 @@ function CanvasApp() {
               onMouseOver={(e) => e.target.style.backgroundColor = 'rgba(255, 77, 79, 0.1)'}
               onMouseOut={(e) => e.target.style.backgroundColor = 'transparent'}
             >
-              🗑️ Delete Node
+              ≡ƒùæ∩╕Å Delete Node
             </button>
           </div>
         )}
@@ -427,7 +425,7 @@ function CanvasApp() {
   )
 }
 
-// Process dropped files → create appropriate node
+// Process dropped files ΓåÆ create appropriate node
 async function processFile(file, position, setNodes) {
   const id = crypto.randomUUID()
   const { type, name } = file
@@ -513,7 +511,6 @@ function getNodeDefaults(type) {
     case 'mediaNode': return { label: 'Media', mimeType: '' }
     case 'youtubeNode': return { label: 'YouTube', url: '' }
     case 'documentNode': return { label: 'Document' }
-    case 'crossReferenceNode': return { label: 'Cross-Reference Matrix' }
     case 'imageGeneratorNode': return { label: 'Image Gen', prompt: '' }
     case 'voiceAgentNode': return { label: 'Voice Agent' }
     default: return { label: type }
@@ -529,7 +526,6 @@ function getNodeMinimapColor(type) {
     case 'textNode': return '#4ade80'
     case 'urlNode': return '#60a5fa'
     case 'documentNode': return '#fbbf24'
-    case 'crossReferenceNode': return '#ec4899'
     default: return '#a78bfa'
   }
 }

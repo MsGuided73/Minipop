@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Bot, Type, Globe, Image, Youtube, FileText, Trash2, Settings, Download, Upload, Plus, ChevronDown, Zap, UserSquare, Sun, Moon, Wand2, Mic } from 'lucide-react'
+import { Bot, Type, Globe, Image, Youtube, FileText, Trash2, Settings, Download, Upload, Plus, ChevronDown, Zap, UserSquare, Sun, Moon, Wand2, Mic, GitCompare } from 'lucide-react'
 import { useCanvas } from '../context/CanvasContext'
 import './Toolbar.css'
 
@@ -11,6 +11,7 @@ const nodeTypes = [
   { type: 'youtubeNode', label: 'YouTube', icon: Youtube, color: '#ff4070', desc: 'YouTube video' },
   { type: 'analysisNode', label: 'Analysis', icon: Zap, color: '#fbbf24', desc: 'Extract viral patterns' },
   { type: 'personaNode', label: 'Persona', icon: UserSquare, color: '#ff6b6b', desc: 'Brand voice & tone' },
+  { type: 'crossReferenceNode', label: 'Cross-Reference', icon: GitCompare, color: '#ec4899', desc: 'Find contradictions & gaps' },
   { type: 'imageGeneratorNode', label: 'Image Gen', icon: Wand2, color: '#ff8aeb', desc: 'Nano Banana 2 / GPT-img' },
   { type: 'voiceAgentNode', label: 'Voice Agent', icon: Mic, color: '#fb923c', desc: 'Live Gemini Voice Call' },
 ]
@@ -106,11 +107,11 @@ export default function Toolbar({ onAddNode, theme, onToggleTheme }) {
       {/* Node count */}
       <div className="toolbar-stats">
         <span className="toolbar-stat">
-          <span className="toolbar-stat-num">{state.nodes.length}</span> nodes
+          <span className="toolbar-stat-num">{(state.nodes || []).length}</span> nodes
         </span>
         <span className="toolbar-stat-sep">·</span>
         <span className="toolbar-stat">
-          <span className="toolbar-stat-num">{state.edges.length}</span> connections
+          <span className="toolbar-stat-num">{(state.edges || []).length}</span> connections
         </span>
       </div>
 
@@ -134,7 +135,7 @@ export default function Toolbar({ onAddNode, theme, onToggleTheme }) {
         <button
           className="btn-icon"
           onClick={() => {
-            if (state.nodes.length > 0 && !confirm('Clear all nodes?')) return
+            if ((state.nodes || []).length > 0 && !window.confirm('Clear all nodes?')) return
             dispatch({ type: 'CLEAR_CANVAS' })
           }}
           title="Clear canvas"

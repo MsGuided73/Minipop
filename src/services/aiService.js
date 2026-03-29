@@ -263,6 +263,97 @@ If a YouTube video or URL source is missing a transcript or text (e.g. marked as
   }
 }
 
+
+/**
+ * Generates a structured cross-reference matrix (agreements, contradictions, assumptions, gaps) based on connected source nodes.
+ */
+export async function generateCrossReference(aiNodeId, nodes, edges, apiKey, model, geminiKey) {
+  const isGemini = model.startsWith('gemini')
+  const currentKey = isGemini ? geminiKey : apiKey
+
+  if (!currentKey) {
+    throw new Error(`No ${isGemini ? 'Gemini' : 'OpenAI'} API key set. Open ⚙️ Settings and paste your key.`)
+  }
+
+  const { sourceContext, personaContext } = buildAIContext(aiNodeId, nodes, edges)
+  if (!sourceContext && !personaContext) throw new Error('No sources connected for cross-referencing.')
+
+  let systemPrompt = `You are an Expert Investigative Researcher and Fact-Checker.
+Your task is to analyze the provided source materials and generate a rigorously structured "Cross-Reference Matrix" to help the user synthesize the truth.`
+
+  if (personaContext) {
+    systemPrompt += `\n\n=== MANDATORY BRAND PERSONA & TONE ===\n${personaContext}\n\nYou MUST strictly analyze the materials through the lens of this persona.`
+  }
+
+  if (sourceContext) {
+    systemPrompt += `\n\n=== SOURCE MATERIALS ===\n${sourceContext}\n=== END SOURCES ===`
+  }
+
+  systemPrompt += `\n\nAnalyze the materials specifically for:
+1. Overlapping Factual Claims (where sources agree).
+2. Direct Contradictions (where sources conflict).
+3. Underlying Assumptions (unproven premises the sources rely upon).
+4. Logic/Evidence Gaps (what is missing from the arguments).
+
+FORMAT REQUIREMENT:
+You MUST output your final analysis as a markdown table with exactly these columns:
+| Topic/Entity | Source Claim (with Source Name) | Conflicting/Agreeing Claim (with Source Name) | Assumptions Made | Logic/Evidence Gaps | Status (Agree/Conflict/Unique) |
+
+Do not summarize outside the table unless necessary to explain a highly complex nuance. Ensure strict factual mapping directly to the source names.`
+
+  if (isGemini) {
+    const contents = [
+      { role: 'user', parts: [{ text: systemPrompt }] },
+      { role: 'user', parts: [{ text: 'Generate the Cross-Reference Matrix.' }] }
+    ]
+
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${currentKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        contents, 
+        generationConfig: { temperature: 0.2 },
+        tools: [{ googleSearch: {} }]
+      }),
+    })
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      throw new Error(err.error?.message || `Gemini API error: ${response.status}`)
+    }
+
+    const data = await response.json()
+    return data.candidates[0]?.content?.parts[0]?.text || ''
+  } else {
+    const messages = [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: 'Generate the Cross-Reference Matrix.' },
+    ]
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${currentKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature: 0.2, // Lower temperature for more analytical/factual extraction
+        max_completion_tokens: 3000,
+      }),
+    })
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      throw new Error(err.error?.message || `OpenAI API error: ${response.status}`)
+    }
+
+    const data = await response.json()
+    return data.choices[0]?.message?.content || ''
+  }
+}
+
 /**
  * Handles image generation calls via OpenAI/Google models.
  */
