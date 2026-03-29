@@ -108,6 +108,62 @@ function CanvasApp() {
     })
   }, [])
 
+  // Handle dropping nodes into Grouping Windows
+  const onNodeDragStop = useCallback(
+    (event, node) => {
+      // Groups themselves shouldn't be parented
+      if (node.type === 'groupNode') return
+
+      if (!reactFlowInstance.current) return
+
+      // getIntersectingNodes natively checks boundaries
+      const intersections = reactFlowInstance.current.getIntersectingNodes(node).filter(n => n.type === 'groupNode')
+      const dropZone = intersections.length > 0 ? intersections[0] : null
+
+      setNodes((nds) =>
+        nds.map((n) => {
+          if (n.id === node.id) {
+            // Node dropped onto a group
+            if (dropZone) {
+              if (n.parentId !== dropZone.id) {
+                // Determine absolute position of the dragging node
+                const absX = node.computed?.positionAbsolute?.x || node.positionAbsolute?.x || node.position.x
+                const absY = node.computed?.positionAbsolute?.y || node.positionAbsolute?.y || node.position.y
+                
+                // Determine absolute position of the group node
+                const dropAbsX = dropZone.computed?.positionAbsolute?.x || dropZone.positionAbsolute?.x || dropZone.position.x
+                const dropAbsY = dropZone.computed?.positionAbsolute?.y || dropZone.positionAbsolute?.y || dropZone.position.y
+
+                return {
+                  ...n,
+                  position: {
+                    x: absX - dropAbsX,
+                    y: absY - dropAbsY,
+                  },
+                  parentId: dropZone.id,
+                  // extent: 'parent' // Optional: locks node entirely inside the group boundary
+                }
+              }
+            } 
+            // Node dropped outside of groups but originally had a parent
+            else if (n.parentId) {
+               const absX = node.computed?.positionAbsolute?.x || node.positionAbsolute?.x || node.position.x
+               const absY = node.computed?.positionAbsolute?.y || node.positionAbsolute?.y || node.position.y
+               return {
+                 ...n,
+                 position: { x: absX, y: absY },
+                 parentId: undefined,
+               }
+            }
+          }
+          return n
+        })
+      )
+    },
+    [setNodes]
+  )
+
+
   // Close Context Menu when clicking empty canvas pane
   const onPaneClick = useCallback(() => {
     if (contextMenu) setContextMenu(null)
@@ -277,6 +333,7 @@ function CanvasApp() {
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           onNodeContextMenu={onNodeContextMenu}
+          onNodeDragStop={onNodeDragStop}
           onPaneClick={onPaneClick}
           onInit={(instance) => { 
             reactFlowInstance.current = instance;

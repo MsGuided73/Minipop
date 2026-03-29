@@ -12,20 +12,32 @@ export function resolveConnectedNodeIds(aiNodeId, nodes, edges) {
   const connectedGroupNodes = nodes.filter(n => connectedNodeIds.includes(n.id) && n.type === 'groupNode')
 
   const isInside = (child, parent) => {
+    // If the node already explicitly has this group as its parent, it is inside.
+    if (child.parentId === parent.id) return true
+    
+    // If the node has a different parent, it is not inside this one.
+    if (child.parentId && child.parentId !== parent.id) return false
+
     if (!child.position || !parent.position) return false
-    const cw = child.measured?.width || child.width || 300
-    const ch = child.measured?.height || child.height || 150
+    const cw = child.measured?.width || child.style?.width || child.width || 300
+    const ch = child.measured?.height || child.style?.height || child.height || 150
     const pw = parent.measured?.width || parent.style?.width || parent.width || 400
     const ph = parent.measured?.height || parent.style?.height || parent.height || 300
     
-    const cx = child.position.x + cw / 2
-    const cy = child.position.y + ch / 2
+    // Compute absolute position fallback
+    const childX = child.computed?.positionAbsolute?.x || child.positionAbsolute?.x || child.position.x
+    const childY = child.computed?.positionAbsolute?.y || child.positionAbsolute?.y || child.position.y
+    const parentX = parent.computed?.positionAbsolute?.x || parent.positionAbsolute?.x || parent.position.x
+    const parentY = parent.computed?.positionAbsolute?.y || parent.positionAbsolute?.y || parent.position.y
+
+    const cx = childX + cw / 2
+    const cy = childY + ch / 2
     
     return (
-      cx >= parent.position.x &&
-      cx <= parent.position.x + pw &&
-      cy >= parent.position.y &&
-      cy <= parent.position.y + ph
+      cx >= parentX &&
+      cx <= parentX + pw &&
+      cy >= parentY &&
+      cy <= parentY + ph
     )
   }
 
