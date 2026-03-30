@@ -64,88 +64,110 @@ app.get(['/api/transcript', '/api/v1/youtube'], authMiddleware, async (req, res)
 
     console.log(`[API] Fetching content for ${videoId} (Comments: ${includeComments})`);
 
-    // 1. Get Metadata
-    const commentsFlag = includeComments === 'true' ? '--get-comments --max-comments 20' : '';
-    const metadataCmd = `yt-dlp --dump-json --skip-download ${commentsFlag} ${videoId}`;
-    const { stdout: metadataStdout } = await execPromise(metadataCmd, { encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024 });
-    const metadataJson = JSON.parse(metadataStdout);
-
-    const metadata = {
-      title: metadataJson.title,
-      description: metadataJson.description,
-      viewCount: metadataJson.view_count,
-      likeCount: metadataJson.like_count,
-      duration: metadataJson.duration,
-      uploader: metadataJson.uploader,
-      uploadDate: metadataJson.upload_date,
-      comments: (metadataJson.comments || []).map(c => ({
-        author: c.author,
-        text: c.text,
-        likeCount: c.like_count
-      }))
+    let metadata = {
+      title: 'Unknown Title',
+      uploader: 'Unknown Uploader',
+      viewCount: 0,
+      comments: []
     };
-
-    // 2. Get Subtitles
-    const outputBase = path.join(tmpDir, `prod_${videoId}`);
-    // Use --write-subs explicitly for uploaded captions, --write-auto-subs for fallback, and wildcard 'en.*' to catch en-US, en-GB, etc.
-    const subCmd = `yt-dlp --write-subs --write-auto-subs --skip-download --sub-langs "en.*,en" --output "${outputBase}" --quiet ${videoId}`;
-    try {
-      await execPromise(subCmd, { encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024 });
-    } catch (e) {
-      console.log(`[API] yt-dlp warning/error for ${videoId}:`, e.message);
-    }
-
-    const files = fs.readdirSync(tmpDir);
-    // Find the downloaded subtitle file (could be .en.vtt, .en-US.vtt, etc.)
-    const subFile = files.find(f => f.startsWith(`prod_${videoId}`) && f.endsWith('.vtt'));
-    
     let cleaned = '';
-    if (subFile) {
-      const filePath = path.join(tmpDir, subFile);
-      const content = fs.readFileSync(filePath, 'utf-8');
+    let via = 'unknown';
+
+    try {
+      // ==========================================
+      // TIER 1: Standard yt-dlp (Gets comments, views, full metadata, and subtitle)
+      // ==========================================
+      const commentsFlag = includeComments === 'true' ? '--get-comments --max-comments 20' : '';
+      const metadataCmd = `yt-dlp --dump-json --skip-download ${commentsFlag} ${videoId}`;
+      const { stdout: metadataStdout } = await execPromise(metadataCmd, { encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024 });
+      const metadataJson = JSON.parse(metadataStdout);
+
+      metadata = {
+        title: metadataJson.title,
+        description: metadataJson.description,
+        viewCount: metadataJson.view_count,
+        likeCount: metadataJson.like_count,
+        duration: metadataJson.duration,
+        uploader: metadataJson.uploader,
+        uploadDate: metadataJson.upload_date,
+        comments: (metadataJson.comments || []).map(c => ({
+          author: c.author,
+          text: c.text,
+          likeCount: c.like_count
+        }))
+      };
+
+      const outputBase = path.join(tmpDir, `prod_${videoId}`);
+      const subCmd = `yt-dlp --write-subs --write-auto-subs --skip-download --sub-langs "en.*,en" --output "${outputBase}" --quiet ${videoId}`;
+      await execPromise(subCmd, { encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024 });
+
+      const files = fs.readdirSync(tmpDir);
+      const subFile = files.find(f => f.startsWith(`prod_${videoId}`) && f.endsWith('.vtt'));
       
-      const rawLines = content
-        .replace(/<[^>]+>/g, '') // Remove <c> tags and timestamps inside lines
-        .split('\n')
-        .map(l => l.trim());
-      
-      const textLines = [];
-      for (const line of rawLines) {
-        if (!line || line === 'WEBVTT' || line.startsWith('Kind:') || line.startsWith('Language:')) continue;
-        if (line.includes('-->')) continue; // Skip timestamp lines
-        if (line.match(/^\d+$/)) continue; // Skip numeric ID lines
-        if (line === '&nbsp;' || line === 'align:start position:0%') continue;
-        
-        // Remove duplicate rolling lines from auto-subs
-        if (textLines.length === 0 || textLines[textLines.length - 1] !== line) {
-          textLines.push(line);
+      if (subFile) {
+        const filePath = path.join(tmpDir, subFile);
+        const content = fs.readFileSync(filePath, 'utf-8');
+        const rawLines = content.replace(/<[^>]+>/g, '').split('\n').map(l => l.trim());
+        const textLines = [];
+        for (const line of rawLines) {
+          if (!line || line === 'WEBVTT' || line.startsWith('Kind:') || line.startsWith('Language:')) continue;
+          if (line.includes('-->') || line.match(/^\d+$/) || line === '&nbsp;' || line === 'align:start position:0%') continue;
+          if (textLines.length === 0 || textLines[textLines.length - 1] !== line) textLines.push(line);
         }
+        cleaned = textLines.join(' ').replace(/\s+/g, ' ');
+        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
       }
+      via = 'poppy-vps-primary';
+
+    } catch (ytErr) {
+      console.log(`[API] yt-dlp failed (Bot Block suspected). Falling back to Anti-Bot measures...`);
       
-      cleaned = textLines.join(' ').replace(/\s+/g, ' ');
-      
-      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      // ==========================================
+      // TIER 2: Anti-Bot Fallback (oEmbed + youtube_transcript_api)
+      // ==========================================
+      try {
+        // Fetch basic metadata from public oEmbed endpoint
+        const oembedRes = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`);
+        if (oembedRes.ok) {
+           const oemData = await oembedRes.json();
+           metadata.title = oemData.title || metadata.title;
+           metadata.uploader = oemData.author_name || metadata.uploader;
+        }
+
+        // Fetch transcript via Python tool (uses InnerTube API directly)
+        const pyCmd = `youtube_transcript_api ${videoId} --format json`;
+        const { stdout: pyStdout } = await execPromise(pyCmd, { encoding: 'utf-8', maxBuffer: 2 * 1024 * 1024 });
+        const transcriptBlocks = JSON.parse(pyStdout);
+        cleaned = transcriptBlocks.map(b => b.text).join(' ').replace(/\n/g, ' ').replace(/\s+/g, ' ');
+        via = 'poppy-vps-antibot-fallback';
+      } catch (fallbackErr) {
+        console.error('[API] Both scraping methods failed:', fallbackErr.message);
+        return res.status(404).json({
+          error: `Could not fetch English transcript for ${videoId}.`,
+          detail: `The video might not have English subtitles available, or aggressive bot-blocking prevented the fetch.`
+        });
+      }
     }
 
     if (!cleaned) {
-      console.log(`[API] Failed to extract any transcript text for ${videoId}. Subtitle file may not exist or YouTube blocked the request.`);
+      console.log(`[API] Failed to extract any transcript text for ${videoId}.`);
       return res.status(404).json({
         error: `Could not fetch English transcript for ${videoId}.`,
-        detail: `The video might not have English subtitles available, or the VPS IP is temporarily rate-limited by YouTube.`
+        detail: `The video might not have English subtitles available.`
       });
     }
 
     res.json({ 
       transcript: cleaned,
       metadata,
-      via: 'poppy-vps-proxy' 
+      via
     });
 
   } catch (err) {
     console.error('[API Error]:', err);
     res.status(500).json({ 
       error: 'ContentLoom was unable to fetch content: ' + err.message,
-      detail: 'Ensure yt-dlp is installed on the server and reachable.'
+      detail: 'Ensure server dependencies are running properly.'
     });
   }
 });

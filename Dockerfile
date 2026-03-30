@@ -18,9 +18,10 @@ RUN apt-get update && apt-get install -y \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
-# Install yt-dlp
+# Install yt-dlp and youtube-transcript-api fallback
 RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp && \
-    chmod a+rx /usr/local/bin/yt-dlp
+    chmod a+rx /usr/local/bin/yt-dlp && \
+    pip3 install youtube-transcript-api --break-system-packages
 
 # Copy build artifacts and server files
 COPY --from=builder /app/dist ./dist
