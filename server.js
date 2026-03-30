@@ -8,8 +8,14 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
+import { YoutubeTranscript } from 'youtube-transcript/dist/youtube-transcript.esm.js';
+import { ApifyClient } from 'apify-client';
 
 dotenv.config();
+
+const apifyClient = new ApifyClient({
+    token: process.env.APIFY_API_TOKEN,
+});
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -119,11 +125,11 @@ app.get(['/api/transcript', '/api/v1/youtube'], authMiddleware, async (req, res)
       }
       via = 'poppy-vps-primary';
 
-    } catch (ytErr) {
+      } catch (ytErr) {
       console.log(`[API] yt-dlp failed (Bot Block suspected). Falling back to Anti-Bot measures...`);
       
       // ==========================================
-      // TIER 2: Anti-Bot Fallback (oEmbed + youtube_transcript_api)
+      // TIER 2: Anti-Bot Fallback (oEmbed + youtube-transcript)
       // ==========================================
       try {
         // Fetch basic metadata from public oEmbed endpoint
@@ -134,27 +140,40 @@ app.get(['/api/transcript', '/api/v1/youtube'], authMiddleware, async (req, res)
            metadata.uploader = oemData.author_name || metadata.uploader;
         }
 
-        // Fetch transcript via Python tool (uses InnerTube API directly)
-        const pyCmd = `youtube_transcript_api ${videoId} --format json`;
-        const { stdout: pyStdout } = await execPromise(pyCmd, { encoding: 'utf-8', maxBuffer: 2 * 1024 * 1024 });
-        const transcriptBlocks = JSON.parse(pyStdout);
+        // Fetch transcript natively via youtube-transcript library
+        const transcriptBlocks = await YoutubeTranscript.fetchTranscript(videoId);
         cleaned = transcriptBlocks.map(b => b.text).join(' ').replace(/\n/g, ' ').replace(/\s+/g, ' ');
         via = 'poppy-vps-antibot-fallback';
       } catch (fallbackErr) {
-        console.error('[API] Both scraping methods failed:', fallbackErr.message);
-        return res.status(404).json({
-          error: `Could not fetch English transcript for ${videoId}.`,
-          detail: `The video might not have English subtitles available, or aggressive bot-blocking prevented the fetch.`
-        });
-      }
-    }
+        console.error('[API] Tier 2 scraping method failed:', fallbackErr.message);
+        console.log(`[API] Proceeding to Tier-3 (Apify Fallback)...`);
+        
+        // ==========================================
+        // TIER 3: The Hammer (Apify Scraping)
+        // ==========================================
+        try {
+          if (!process.env.APIFY_API_TOKEN) {
+            throw new Error("Missing APIFY_API_TOKEN from environment. Cannot run Tier-3 fallback.");
+          }
+          const run = await apifyClient.actor("karamelo/youtube-transcripts").call({
+               urls: [`https://www.youtube.com/watch?v=${videoId}`]
+          });
+          const { items } = await apifyClient.dataset(run.defaultDatasetId).listItems();
+          if (items.length > 0 && items[0].captions && Array.isArray(items[0].captions)) {
+              cleaned = items[0].captions.join(' ').replace(/\n/g, ' ').replace(/\s+/g, ' ');
+              via = 'poppy-vps-apify-fallback';
+              metadata.title = items[0].title || metadata.title;
+              metadata.uploader = items[0].channelName || metadata.uploader;
+          } else {
+              throw new Error("Apify actor returned empty payload or invalid schema.");
+          }
 
-    if (!cleaned) {
-      console.log(`[API] Failed to extract any transcript text for ${videoId}.`);
-      return res.status(404).json({
-        error: `Could not fetch English transcript for ${videoId}.`,
-        detail: `The video might not have English subtitles available.`
-      });
+        } catch (apifyErr) {
+          console.error('[API] Tier 3 (Apify) scraping failed:', apifyErr.message);
+          // Do not return 404 here! We want to gracefully return whatever metadata we got from oEmbed
+          console.log(`[API] Proceeding with metadata-only for ${videoId} due to complete transcript failure.`);
+        }
+      }
     }
 
     res.json({ 
