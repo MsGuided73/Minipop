@@ -53,8 +53,8 @@ export default function YouTubeNode({ id, data, selected }) {
     try {
       // 1. Try Local Proxy (Fastest + Highest Rate Limits)
       try {
-        // Pointing to the unified server.js running on Port 3000
-        const localProxyUrl = `http://localhost:3000/api/transcript?url=${encodeURIComponent(url)}&includeComments=${withComments}`
+        // Use relative path so it works in both local dev (via Vite proxy) and production (via server.js)
+        const localProxyUrl = `/api/transcript?url=${encodeURIComponent(url)}&includeComments=${withComments}`
         const localRes = await fetch(localProxyUrl)
         
         if (localRes.ok) {
