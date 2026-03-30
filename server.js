@@ -87,14 +87,16 @@ app.get(['/api/transcript', '/api/v1/youtube'], authMiddleware, async (req, res)
 
     // 2. Get Subtitles
     const outputBase = path.join(tmpDir, `prod_${videoId}`);
-    const subCmd = `yt-dlp --write-auto-subs --skip-download --sub-lang en --output "${outputBase}" --quiet ${videoId}`;
+    // Use --write-subs explicitly for uploaded captions, --write-auto-subs for fallback, and wildcard 'en.*' to catch en-US, en-GB, etc.
+    const subCmd = `yt-dlp --write-subs --write-auto-subs --skip-download --sub-langs "en.*,en" --output "${outputBase}" --quiet ${videoId}`;
     try {
       await execPromise(subCmd, { encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024 });
     } catch (e) {
-      console.log('[API] yt-dlp warning on subs:', e.message);
+      console.log(`[API] yt-dlp warning/error for ${videoId}:`, e.message);
     }
 
     const files = fs.readdirSync(tmpDir);
+    // Find the downloaded subtitle file (could be .en.vtt, .en-US.vtt, etc.)
     const subFile = files.find(f => f.startsWith(`prod_${videoId}`) && f.endsWith('.vtt'));
     
     let cleaned = '';
@@ -123,6 +125,14 @@ app.get(['/api/transcript', '/api/v1/youtube'], authMiddleware, async (req, res)
       cleaned = textLines.join(' ').replace(/\s+/g, ' ');
       
       if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    }
+
+    if (!cleaned) {
+      console.log(`[API] Failed to extract any transcript text for ${videoId}. Subtitle file may not exist or YouTube blocked the request.`);
+      return res.status(404).json({
+        error: `Could not fetch English transcript for ${videoId}.`,
+        detail: `The video might not have English subtitles available, or the VPS IP is temporarily rate-limited by YouTube.`
+      });
     }
 
     res.json({ 
