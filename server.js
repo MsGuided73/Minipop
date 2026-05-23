@@ -24,8 +24,13 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Initialize Supabase Client
-const supabaseUrl = process.env.SUPABASE_URL || 'https://dfcppzpppqgphjjxypyw.supabase.co';
-const supabaseKey = process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRmY3BwenBwcHFncGhqanh5cHl3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA3Mjg5MDYsImV4cCI6MjA4NjMwNDkwNn0.iuVtlNdHAkh2Rpg4c8zAflGTexI04BwN0TcRhCVrhQo';
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_ANON_KEY;
+if (!supabaseUrl || !supabaseKey) {
+  console.error('FATAL: SUPABASE_URL and SUPABASE_ANON_KEY must be set in .env');
+  console.error('Copy .env.example to .env and fill in the values.');
+  process.exit(1);
+}
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Middleware

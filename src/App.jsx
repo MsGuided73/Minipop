@@ -53,7 +53,7 @@ const EDGE_TYPES = {
 }
 
 function CanvasApp() {
-  const { state, dispatch, addNode, triggerSave, registerFlowInstance } = useCanvas()
+  const { state, dispatch, addNode, triggerSave, loadFromLocal, registerFlowInstance } = useCanvas()
   const [nodes, setNodes, onNodesChange] = useNodesState(state.nodes || [])
   const [edges, setEdges, onEdgesChange] = useEdgesState(state.edges || [])
   const [isDraggingOver, setIsDraggingOver] = useState(false)
@@ -72,19 +72,23 @@ function CanvasApp() {
 
   // ── CRITICAL: React Flow instance is now registered in onInit
 
-  // Keep context mirror and auto-save in sync with React Flow state
+  // Mirror React Flow state into context (so Toolbar/Settings can read it) and auto-save
   useEffect(() => {
     dispatch({ type: 'SET_NODES', nodes })
     dispatch({ type: 'SET_EDGES', edges })
     triggerSave(nodes, edges)
   }, [nodes, edges])
 
-  // Load persisted nodes on first mount
+  // Rehydrate canvas from localforage on first mount
   useEffect(() => {
-    if (state.nodes?.length > 0 && nodes.length === 0) {
-      setNodes(state.nodes)
-      setEdges(state.edges || [])
-    }
+    let cancelled = false
+    ;(async () => {
+      const saved = await loadFromLocal()
+      if (cancelled || !saved) return
+      if (saved.nodes?.length) setNodes(saved.nodes)
+      if (saved.edges?.length) setEdges(saved.edges)
+    })()
+    return () => { cancelled = true }
   }, [])
 
   // Handle new connections

@@ -153,7 +153,7 @@ export default function YouTubeNode({ id, data, selected }) {
     loading: { icon: <Loader size={10} className="spin" />, text: 'Fetching transcript…',  cls: 'node-tag--loading' },
     loaded:  { 
       icon: <FileText size={10} />, 
-      text: `✓ ${data.metadata?.viewCount ? `${(data.metadata.viewCount / 1000000).toFixed(1)}M views · ` : ''}${data.metadata?.comments?.length > 0 ? '💬 Comments synced · ' : ''}Transcript loaded${charCount ? ` · ${(charCount/1000).toFixed(1)}k chars` : ''}`, 
+      text: `✓ ${data.videoMetadata?.viewCount ? `${(data.videoMetadata.viewCount / 1000000).toFixed(1)}M views · ` : ''}${data.videoMetadata?.comments?.length > 0 ? '💬 Comments synced · ' : ''}Transcript loaded${charCount ? ` · ${(charCount/1000).toFixed(1)}k chars` : ''}`,
       cls: 'node-tag--success' 
     },
     failed:  { icon: <AlertCircle size={10} />,             text: 'No transcript — URL-only mode', cls: 'node-tag--warning' },

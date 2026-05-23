@@ -131,11 +131,12 @@ export function buildAIContext(aiNodeId, nodes, edges) {
  * Handles generating chat responses based on node connections.
  */
 export async function callAI(aiNodeId, userMessage, nodes, edges, apiKey, model, geminiKey) {
-  const isGemini = model.startsWith('gemini')
-  const currentKey = isGemini ? geminiKey : apiKey
+  const isGoogle = model.startsWith('gemini') || model.startsWith('gemma')
+  const isGemma = model.startsWith('gemma')
+  const currentKey = isGoogle ? geminiKey : apiKey
 
   if (!currentKey) {
-    throw new Error(`No ${isGemini ? 'Gemini' : 'OpenAI'} API key set. Open ⚙️ Settings and paste your key.`)
+    throw new Error(`No ${isGoogle ? 'Google AI' : 'OpenAI'} API key set. Open ⚙️ Settings and paste your key.`)
   }
 
   const { sourceContext, personaContext } = buildAIContext(aiNodeId, nodes, edges)
@@ -165,7 +166,7 @@ PROACTIVE GUIDANCE & ENHANCED SUGGESTIONS:
   const aiNode = nodes.find(n => n.id === aiNodeId)
   const history = aiNode?.data?.messages || []
 
-  if (isGemini) {
+  if (isGoogle) {
     const contents = [
       { role: 'user', parts: [{ text: `SYSTEM INSTRUCTION: ${systemPrompt}` }] },
       ...history.slice(-12).map(m => ({
@@ -178,15 +179,15 @@ PROACTIVE GUIDANCE & ENHANCED SUGGESTIONS:
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${currentKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
+      body: JSON.stringify({
         contents,
-        tools: [{ googleSearch: {} }]
+        ...(isGemma ? {} : { tools: [{ googleSearch: {} }] }),
       }),
     })
 
     if (!response.ok) {
       const err = await response.json().catch(() => ({}))
-      throw new Error(err.error?.message || `Gemini API error: ${response.status}`)
+      throw new Error(err.error?.message || `Google AI API error: ${response.status}`)
     }
 
     const data = await response.json()
@@ -229,11 +230,12 @@ PROACTIVE GUIDANCE & ENHANCED SUGGESTIONS:
  * Highly structured viral pattern analysis based on connected source nodes.
  */
 export async function analyzeViralPatterns(aiNodeId, nodes, edges, apiKey, model, geminiKey) {
-  const isGemini = model.startsWith('gemini')
-  const currentKey = isGemini ? geminiKey : apiKey
+  const isGoogle = model.startsWith('gemini') || model.startsWith('gemma')
+  const isGemma = model.startsWith('gemma')
+  const currentKey = isGoogle ? geminiKey : apiKey
 
   if (!currentKey) {
-    throw new Error(`No ${isGemini ? 'Gemini' : 'OpenAI'} API key set. Open ⚙️ Settings and paste your key.`)
+    throw new Error(`No ${isGoogle ? 'Google AI' : 'OpenAI'} API key set. Open ⚙️ Settings and paste your key.`)
   }
 
   const { sourceContext, personaContext } = buildAIContext(aiNodeId, nodes, edges)
@@ -264,7 +266,7 @@ If a YouTube video or URL source is missing a transcript or text (e.g. marked as
 - Avoid definitive certainty; use hypothesis-driven language.
 - Mention the source label for each insight.`
 
-  if (isGemini) {
+  if (isGoogle) {
     const contents = [
       { role: 'user', parts: [{ text: systemPrompt }] },
       { role: 'user', parts: [{ text: 'Perform a comprehensive viral pattern analysis across these sources.' }] }
@@ -273,16 +275,16 @@ If a YouTube video or URL source is missing a transcript or text (e.g. marked as
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${currentKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        contents, 
+      body: JSON.stringify({
+        contents,
         generationConfig: { temperature: 0.4 },
-        tools: [{ googleSearch: {} }]
+        ...(isGemma ? {} : { tools: [{ googleSearch: {} }] }),
       }),
     })
 
     if (!response.ok) {
       const err = await response.json().catch(() => ({}))
-      throw new Error(err.error?.message || `Gemini API error: ${response.status}`)
+      throw new Error(err.error?.message || `Google AI API error: ${response.status}`)
     }
 
     const data = await response.json()
@@ -322,11 +324,12 @@ If a YouTube video or URL source is missing a transcript or text (e.g. marked as
  * Generates a structured cross-reference matrix (agreements, contradictions, assumptions, gaps) based on connected source nodes.
  */
 export async function generateCrossReference(aiNodeId, nodes, edges, apiKey, model, geminiKey) {
-  const isGemini = model.startsWith('gemini')
-  const currentKey = isGemini ? geminiKey : apiKey
+  const isGoogle = model.startsWith('gemini') || model.startsWith('gemma')
+  const isGemma = model.startsWith('gemma')
+  const currentKey = isGoogle ? geminiKey : apiKey
 
   if (!currentKey) {
-    throw new Error(`No ${isGemini ? 'Gemini' : 'OpenAI'} API key set. Open ⚙️ Settings and paste your key.`)
+    throw new Error(`No ${isGoogle ? 'Google AI' : 'OpenAI'} API key set. Open ⚙️ Settings and paste your key.`)
   }
 
   const { sourceContext, personaContext } = buildAIContext(aiNodeId, nodes, edges)
@@ -353,7 +356,7 @@ FORMAT REQUIREMENT:
 You MUST output your final analysis as a detailed Markdown Report, divided into clear headings corresponding to the criteria above. Use bullet points, bold text, and blockquotes to make the investigative report easy to digest and highly structured.
 Do NOT format as a table - provide a comprehensive, long-form narrative analysis.`
 
-  if (isGemini) {
+  if (isGoogle) {
     const contents = [
       { role: 'user', parts: [{ text: systemPrompt }] },
       { role: 'user', parts: [{ text: 'Generate the structured investigative Cross-Reference Report.' }] }
@@ -362,16 +365,16 @@ Do NOT format as a table - provide a comprehensive, long-form narrative analysis
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${currentKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        contents, 
+      body: JSON.stringify({
+        contents,
         generationConfig: { temperature: 0.2 },
-        tools: [{ googleSearch: {} }]
+        ...(isGemma ? {} : { tools: [{ googleSearch: {} }] }),
       }),
     })
 
     if (!response.ok) {
       const err = await response.json().catch(() => ({}))
-      throw new Error(err.error?.message || `Gemini API error: ${response.status}`)
+      throw new Error(err.error?.message || `Google AI API error: ${response.status}`)
     }
 
     const data = await response.json()
@@ -410,11 +413,11 @@ Do NOT format as a table - provide a comprehensive, long-form narrative analysis
  * Converts a generated textual Cross-Reference Report into a strict Markdown table.
  */
 export async function generateCrossReferenceTable(reportText, apiKey, model, geminiKey) {
-  const isGemini = model.startsWith('gemini')
-  const currentKey = isGemini ? geminiKey : apiKey
+  const isGoogle = model.startsWith('gemini') || model.startsWith('gemma')
+  const currentKey = isGoogle ? geminiKey : apiKey
 
   if (!currentKey) {
-    throw new Error(`No ${isGemini ? 'Gemini' : 'OpenAI'} API key set. Open ⚙️ Settings and paste your key.`)
+    throw new Error(`No ${isGoogle ? 'Google AI' : 'OpenAI'} API key set. Open ⚙️ Settings and paste your key.`)
   }
 
   const systemPrompt = `You are an expert Data Structurer. Your task is to extract the findings from the provided investigative report and convert them STRICTLY into a Markdown table.
@@ -424,7 +427,7 @@ FORMAT REQUIREMENT:
 You MUST output ONLY a markdown table with exactly these columns:
 | Topic/Entity | Competing Claims & Sources | Assumptions & Fallacies | Logic & Evidence Gaps | Narrative & Rhetoric | Status (Agree/Conflict) |`
 
-  if (isGemini) {
+  if (isGoogle) {
     const contents = [
       { role: 'user', parts: [{ text: systemPrompt }] },
       { role: 'user', parts: [{ text: `Here is the report to convert:\n\n${reportText}\n\nGenerate the Markdown table.` }] }
@@ -433,15 +436,15 @@ You MUST output ONLY a markdown table with exactly these columns:
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${currentKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        contents, 
+      body: JSON.stringify({
+        contents,
         generationConfig: { temperature: 0.1 }
       }),
     })
 
     if (!response.ok) {
       const err = await response.json().catch(() => ({}))
-      throw new Error(err.error?.message || `Gemini API error: ${response.status}`)
+      throw new Error(err.error?.message || `Google AI API error: ${response.status}`)
     }
 
     const data = await response.json()
@@ -480,14 +483,14 @@ You MUST output ONLY a markdown table with exactly these columns:
  * Handles image generation calls via OpenAI/Google models.
  */
 export async function generateImage(prompt, apiKey, model, geminiKey) {
-  const isGemini = model.startsWith('gemini') || model.startsWith('nano')
-  const currentKey = isGemini ? geminiKey : apiKey
+  const isGoogle = model.startsWith('gemini') || model.startsWith('gemma') || model.startsWith('nano')
+  const currentKey = isGoogle ? geminiKey : apiKey
 
   if (!currentKey) {
-    throw new Error(`No ${isGemini ? 'Gemini' : 'OpenAI'} API key set. Open ⚙️ Settings and paste your key.`)
+    throw new Error(`No ${isGoogle ? 'Google AI' : 'OpenAI'} API key set. Open ⚙️ Settings and paste your key.`)
   }
 
-  if (isGemini) {
+  if (isGoogle) {
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-fast-generate-001:predict?key=${currentKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

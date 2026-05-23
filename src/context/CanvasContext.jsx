@@ -34,20 +34,35 @@ function saveGeminiKey(raw) {
   localStorage.setItem('poppyai_gemini_key', encodeKey(raw))
 }
 
+const VALID_MODELS = ['gpt-4o', 'o1-preview', 'gemma-4-31b-it', 'gemma-4-26b-a4b-it']
+
+function readModel() {
+  const stored = localStorage.getItem('poppyai_model')
+  return VALID_MODELS.includes(stored) ? stored : 'gpt-4o'
+}
+
 const initialState = {
   apiKey: readApiKey(),
   geminiKey: readGeminiKey(),
-  model: localStorage.getItem('poppyai_model') || 'gpt-4o',
+  model: readModel(),
   settingsOpen: false,
   boardId: localStorage.getItem('poppyai_boardId') || uuidv4(),
   boardName: localStorage.getItem('poppyai_boardName') || 'Untitled Board',
   folderId: localStorage.getItem('poppyai_folderId') || null,
   remoteBoards: [],
   folders: [],
+  nodes: [],
+  edges: [],
 }
 
 function canvasReducer(state, action) {
   switch (action.type) {
+    case 'SET_NODES':
+      return { ...state, nodes: action.nodes }
+
+    case 'SET_EDGES':
+      return { ...state, edges: action.edges }
+
     case 'SET_API_KEY':
       saveApiKey(action.key)
       return { ...state, apiKey: action.key }
@@ -125,6 +140,15 @@ export function CanvasProvider({ children }) {
     }, 2000)
   }, [])
 
+  const loadFromLocal = useCallback(async () => {
+    try {
+      return await localforage.getItem('poppyai_canvas')
+    } catch (err) {
+      console.error('LocalForage load error:', err)
+      return null
+    }
+  }, [])
+
   // ─── Node operations ───────────────────────────────────────────────────────
 
   const addNode = useCallback((type, position, data = {}) => {
@@ -165,6 +189,7 @@ export function CanvasProvider({ children }) {
     updateNode,
     deleteNode,
     triggerSave,
+    loadFromLocal,
     registerFlowInstance,
     saveBoardToServer: async (overrideName, overrideFolderId) => {
       const nodes = flowInstanceRef.current?.getNodes() || []

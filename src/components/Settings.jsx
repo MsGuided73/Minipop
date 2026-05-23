@@ -4,10 +4,10 @@ import { useCanvas } from '../context/CanvasContext'
 import './Settings.css'
 
 const MODELS = [
-  { id: 'gpt-4o', label: 'GPT-4o', desc: 'Fast and intelligent (Omni)', recommended: true },
-  { id: 'o1-preview', label: 'o1 Preview', desc: 'Advanced reasoning and problem solving' },
-  { id: 'gemini-2.5-pro', label: 'Gemini 3.1 Pro', desc: 'Google High Capability (Environment: 2.5 Pro)' },
-  { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', desc: 'Google Ultra-fast' },
+  { id: 'gpt-4o', label: 'GPT-4o', desc: 'OpenAI Omni — fast and intelligent', recommended: true },
+  { id: 'o1-preview', label: 'o1 Preview', desc: 'OpenAI reasoning model' },
+  { id: 'gemma-4-31b-it', label: 'Gemma 4 31B', desc: 'Google open model — max quality (256K context)' },
+  { id: 'gemma-4-26b-a4b-it', label: 'Gemma 4 26B (MoE)', desc: 'Google open model — faster, cheaper, similar quality' },
 ]
 
 export default function Settings() {
@@ -54,22 +54,22 @@ export default function Settings() {
   }
 
   const handleTest = async () => {
-    const isGemini = state.model.startsWith('gemini')
-    const keyToTest = isGemini ? geminiKeyInput.trim() : apiKeyInput.trim()
-    
+    const isGoogle = state.model.startsWith('gemini') || state.model.startsWith('gemma')
+    const keyToTest = isGoogle ? geminiKeyInput.trim() : apiKeyInput.trim()
+
     if (!keyToTest) {
-      setTestResult({ ok: false, msg: `Please enter a ${isGemini ? 'Gemini' : 'OpenAI'} API key first.` })
+      setTestResult({ ok: false, msg: `Please enter a ${isGoogle ? 'Google AI' : 'OpenAI'} API key first.` })
       return
     }
 
     setTesting(true)
     setTestResult(null)
     try {
-      if (isGemini) {
-        // Test Gemini key using a simple model info check or content generation
+      if (isGoogle) {
+        // Test Google AI key using a simple model info check
         const res = await fetch(`https://generativelanguage.googleapis.com/v1/models/${state.model}?key=${keyToTest}`)
         if (res.ok) {
-          setTestResult({ ok: true, msg: 'Gemini API key is valid ✓' })
+          setTestResult({ ok: true, msg: 'Google AI API key is valid ✓' })
         } else {
           const data = await res.json().catch(() => ({}))
           setTestResult({ ok: false, msg: data.error?.message || `Error ${res.status}` })
@@ -129,7 +129,7 @@ export default function Settings() {
             </div>
             <div>
               <label className="settings-label">
-                <Key size={13} /> Google Gemini API Key
+                <Key size={13} /> Google AI API Key
               </label>
               <input
                 type="password"
