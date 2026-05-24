@@ -308,6 +308,96 @@ app.delete('/api/v1/folders/:id', authMiddleware, async (req, res) => {
 });
 
 /**
+ * Prompts API — library of parameterized analysis prompts
+ */
+function mapPromptRow(row) {
+  return {
+    id: row.id,
+    title: row.title,
+    body: row.body,
+    description: row.description || '',
+    tags: row.tags || [],
+    variables: row.variables || [],
+    defaultRunMode: row.default_run_mode || 'review',
+    parentId: row.parent_id || null,
+    isSeed: !!row.is_seed,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+app.get('/api/v1/prompts', authMiddleware, async (req, res) => {
+  let query = supabase.from('pop_prompts').select('*').order('created_at', { ascending: false });
+  if (req.query.tag) query = query.contains('tags', [req.query.tag]);
+  const { data, error } = await query;
+  if (error) {
+    console.error('[Supabase Error]:', error);
+    return res.status(500).json({ error: error.message });
+  }
+  res.json(data.map(mapPromptRow));
+});
+
+app.get('/api/v1/prompts/:id', authMiddleware, async (req, res) => {
+  const { data, error } = await supabase.from('pop_prompts').select('*').eq('id', req.params.id).single();
+  if (error || !data) return res.status(404).json({ error: 'Prompt not found' });
+  res.json(mapPromptRow(data));
+});
+
+app.post('/api/v1/prompts', authMiddleware, async (req, res) => {
+  const p = req.body;
+  if (!p.title || !p.body) return res.status(400).json({ error: 'title and body are required' });
+  const insert = {
+    title: p.title,
+    body: p.body,
+    description: p.description || null,
+    tags: Array.isArray(p.tags) ? p.tags : [],
+    variables: Array.isArray(p.variables) ? p.variables : [],
+    default_run_mode: p.defaultRunMode === 'auto' ? 'auto' : 'review',
+    parent_id: p.parentId || null,
+    is_seed: false,
+  };
+  const { data, error } = await supabase.from('pop_prompts').insert(insert).select('*').single();
+  if (error) {
+    console.error('[Supabase Error]:', error);
+    return res.status(500).json({ error: error.message });
+  }
+  res.json(mapPromptRow(data));
+});
+
+app.put('/api/v1/prompts/:id', authMiddleware, async (req, res) => {
+  const p = req.body;
+  const update = {
+    ...(p.title !== undefined && { title: p.title }),
+    ...(p.body !== undefined && { body: p.body }),
+    ...(p.description !== undefined && { description: p.description }),
+    ...(p.tags !== undefined && { tags: Array.isArray(p.tags) ? p.tags : [] }),
+    ...(p.variables !== undefined && { variables: Array.isArray(p.variables) ? p.variables : [] }),
+    ...(p.defaultRunMode !== undefined && { default_run_mode: p.defaultRunMode === 'auto' ? 'auto' : 'review' }),
+    updated_at: new Date().toISOString(),
+  };
+  const { data, error } = await supabase.from('pop_prompts').update(update).eq('id', req.params.id).select('*').single();
+  if (error) {
+    console.error('[Supabase Error]:', error);
+    return res.status(500).json({ error: error.message });
+  }
+  if (!data) return res.status(404).json({ error: 'Prompt not found' });
+  res.json(mapPromptRow(data));
+});
+
+app.delete('/api/v1/prompts/:id', authMiddleware, async (req, res) => {
+  // Block deletion of seed prompts; encourage variations instead
+  const { data: existing } = await supabase.from('pop_prompts').select('is_seed').eq('id', req.params.id).single();
+  if (existing?.is_seed) return res.status(400).json({ error: 'Seed prompts cannot be deleted. Save a variation instead.' });
+
+  const { error } = await supabase.from('pop_prompts').delete().eq('id', req.params.id);
+  if (error) {
+    console.error('[Supabase Error]:', error);
+    return res.status(500).json({ error: error.message });
+  }
+  res.json({ success: true });
+});
+
+/**
  * Knowledge Query API (Embed Tool)
  * Allows external apps to "Ask" a board a question.
  */
@@ -344,7 +434,22 @@ app.post('/api/v1/boards/:id/query', authMiddleware, async (req, res) => {
 
 // Fallback to index.html for React SPA routing
 app.get(/.*/, (req, res) => {
-  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+  const indexPath = path.join(__dirname, 'dist', 'index.html');
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res.status(404).send(`
+      <div style="font-family: sans-serif; padding: 2rem; max-width: 600px; margin: auto; margin-top: 10%; line-height: 1.6; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+        <h1 style="color: #dd6b20; margin-top: 0;">Production Build Not Found</h1>
+        <p>The Express backend is active, but the frontend production bundle is missing from <code>dist/</code>.</p>
+        <div style="background-color: #feebc8; border-left: 4px solid #dd6b20; padding: 1rem; margin: 1.5rem 0; border-radius: 4px;">
+          <strong>For Local Development:</strong> Please use the Vite dev server at <a href="http://localhost:5173" style="color: #dd6b20; font-weight: bold; text-decoration: underline;">http://localhost:5173</a>, which supports hot module reloading.
+        </div>
+        <p>To run in production mode, generate the bundle first by executing:</p>
+        <pre style="background-color: #edf2f7; padding: 0.75rem; border-radius: 4px; overflow-x: auto;"><code>npm run build</code></pre>
+      </div>
+    `);
+  }
 });
 
 app.listen(PORT, () => {

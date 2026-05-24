@@ -16,6 +16,7 @@ import { CanvasProvider, useCanvas } from './context/CanvasContext'
 import Sidebar from './components/Sidebar'
 import Toolbar from './components/Toolbar'
 import Settings from './components/Settings'
+import PromptPanel from './components/PromptPanel'
 import MediaNode from './nodes/MediaNode'
 import YouTubeNode from './nodes/YouTubeNode'
 import TextNode from './nodes/TextNode'
@@ -29,6 +30,8 @@ import GroupNode from './nodes/GroupNode'
 import SemanticEdge from './components/SemanticEdge'
 import ImageGeneratorNode from './nodes/ImageGeneratorNode'
 import VoiceAgentNode from './nodes/VoiceAgentNode'
+import LensNode from './nodes/LensNode'
+import { renderPrompt } from './services/promptService'
 import './App.css'
 
 // Register node types
@@ -45,6 +48,7 @@ const NODE_TYPES = {
   groupNode: GroupNode,
   imageGeneratorNode: ImageGeneratorNode,
   voiceAgentNode: VoiceAgentNode,
+  lensNode: LensNode,
 }
 
 // Register edge types
@@ -208,6 +212,84 @@ function CanvasApp() {
     setNodes(nds => [...nds, newNode])
     return id
   }, [setNodes])
+
+  // Spawn a Lens Node from the Prompt Library. If `sourceNodeId` is given,
+  // position the lens to the right of that source and auto-connect an edge.
+  const handleSpawnLensNode = useCallback((spec) => {
+    const {
+      promptId,
+      promptTitle,
+      promptBody,
+      variables,
+      values,
+      runImmediately,
+      sourceNodeId,
+      label,
+    } = spec
+
+    // Resolve a source node: explicit selection wins; otherwise auto-detect the
+    // most recently-added content node (preferring YouTube/media/document over notes).
+    let sourceNode = sourceNodeId ? nodes.find(n => n.id === sourceNodeId) : null
+    if (!sourceNode) {
+      const PRIORITY = ['youtubeNode', 'mediaNode', 'documentNode', 'urlNode', 'textNode']
+      const candidates = nodes.filter(n => PRIORITY.includes(n.type))
+      // Iterate in priority order; within each type, prefer the last (most recent) entry.
+      for (const type of PRIORITY) {
+        const matches = candidates.filter(n => n.type === type)
+        if (matches.length > 0) {
+          sourceNode = matches[matches.length - 1]
+          break
+        }
+      }
+    }
+    let pos
+    if (sourceNode) {
+      const w = sourceNode.measured?.width || sourceNode.width || 280
+      pos = {
+        x: sourceNode.position.x + w + 80,
+        y: sourceNode.position.y,
+      }
+    } else if (reactFlowInstance.current) {
+      const rect = reactFlowWrapper.current?.getBoundingClientRect()
+      pos = reactFlowInstance.current.screenToFlowPosition({
+        x: (rect?.width || 800) / 2,
+        y: (rect?.height || 600) / 2,
+      })
+    } else {
+      pos = { x: 200, y: 200 }
+    }
+
+    const id = crypto.randomUUID()
+    const rendered = renderPrompt(promptBody || '', values || {})
+    const newNode = {
+      id,
+      type: 'lensNode',
+      position: pos,
+      data: {
+        label: label || `${promptTitle || 'Lens'}`,
+        promptId,
+        promptTitle,
+        promptBody,
+        variables,
+        values,
+        renderedPrompt: rendered,
+        report: '',
+        runOnMount: !!runImmediately,
+      },
+    }
+    setNodes(nds => [...nds, newNode])
+
+    if (sourceNode) {
+      setEdges(eds => [...eds, {
+        id: `e-${sourceNode.id}-${id}`,
+        source: sourceNode.id,
+        target: id,
+        type: 'semantic',
+        animated: true,
+      }])
+    }
+    return id
+  }, [nodes, setNodes, setEdges])
 
   // File drop handler
   const handleDrop = useCallback(async (e) => {
@@ -486,6 +568,8 @@ function CanvasApp() {
         )}
       </div>
     </div>
+
+    <PromptPanel onSpawnLensNode={handleSpawnLensNode} />
     </div>
   )
 }
@@ -580,6 +664,7 @@ function getNodeDefaults(type) {
     case 'imageGeneratorNode': return { label: 'Image Gen', prompt: '' }
     case 'voiceAgentNode': return { label: 'Voice Agent' }
     case 'groupNode': return { label: 'Grouping Window' }
+    case 'lensNode': return { label: 'Lens', promptTitle: '', promptBody: '', renderedPrompt: '', values: {}, report: '' }
     default: return { label: type }
   }
 }
@@ -595,6 +680,7 @@ function getNodeMinimapColor(type) {
     case 'documentNode': return '#fbbf24'
     case 'crossReferenceNode': return '#ec4899'
     case 'groupNode': return '#7c5cfc'
+    case 'lensNode': return '#e8832a'
     default: return '#a78bfa'
   }
 }

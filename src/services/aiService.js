@@ -480,6 +480,88 @@ You MUST output ONLY a markdown table with exactly these columns:
 }
 
 /**
+ * Send one turn of a Lens conversation. The renderedPrompt is the persistent system
+ * instruction (the same on every turn); `history` is prior chat exchanges; `userMessage`
+ * is the latest user input (for the initial run this is a fixed kickoff string).
+ * Returns the assistant's reply text.
+ */
+export const LENS_KICKOFF = 'Begin the analysis now. Output the complete report in the format specified.'
+
+export async function callLensChat(lensNodeId, userMessage, renderedPrompt, history, nodes, edges, apiKey, model, geminiKey) {
+  const isGoogle = model.startsWith('gemini') || model.startsWith('gemma')
+  const isGemma = model.startsWith('gemma')
+  const currentKey = isGoogle ? geminiKey : apiKey
+
+  if (!currentKey) {
+    throw new Error(`No ${isGoogle ? 'Google AI' : 'OpenAI'} API key set. Open ⚙️ Settings and paste your key.`)
+  }
+
+  const { sourceContext, personaContext } = buildAIContext(lensNodeId, nodes, edges)
+
+  let systemPrompt = renderedPrompt
+  if (personaContext) {
+    systemPrompt += `\n\n=== MANDATORY BRAND PERSONA & TONE ===\n${personaContext}\n\nFilter all output through this persona.`
+  }
+  if (sourceContext) {
+    systemPrompt += `\n\n=== CONNECTED SOURCES ===\n${sourceContext}\n=== END SOURCES ===\n\nAnchor every observation to these sources. Cite source labels in your output. For follow-up questions, stay grounded in these same sources.`
+  } else {
+    systemPrompt += `\n\n(No source nodes connected. Note this limitation if relevant.)`
+  }
+
+  const trimmedHistory = (history || []).slice(-20)
+
+  if (isGoogle) {
+    const contents = [
+      { role: 'user', parts: [{ text: `SYSTEM INSTRUCTION: ${systemPrompt}` }] },
+      ...trimmedHistory.map(m => ({
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: m.content }],
+      })),
+      { role: 'user', parts: [{ text: userMessage }] },
+    ]
+
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${currentKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents,
+        generationConfig: { temperature: 0.4 },
+        ...(isGemma ? {} : { tools: [{ googleSearch: {} }] }),
+      }),
+    })
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      throw new Error(err.error?.message || `Google AI API error: ${response.status}`)
+    }
+    const data = await response.json()
+    return data.candidates[0]?.content?.parts[0]?.text || ''
+  }
+
+  const messages = [
+    { role: 'system', content: systemPrompt },
+    ...trimmedHistory.map(m => ({ role: m.role, content: m.content })),
+    { role: 'user', content: userMessage },
+  ]
+
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${currentKey}` },
+    body: JSON.stringify({
+      model,
+      messages,
+      temperature: 0.4,
+      max_completion_tokens: 4000,
+    }),
+  })
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}))
+    throw new Error(err.error?.message || `OpenAI API error: ${response.status}`)
+  }
+  const data = await response.json()
+  return data.choices[0]?.message?.content || ''
+}
+
+/**
  * Handles image generation calls via OpenAI/Google models.
  */
 export async function generateImage(prompt, apiKey, model, geminiKey) {

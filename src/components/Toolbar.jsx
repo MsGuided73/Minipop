@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Bot, Type, Globe, Image, Youtube, FileText, Trash2, Settings, Download, Upload, Plus, ChevronDown, Zap, UserSquare, Sun, Moon, Wand2, Mic, GitCompare, Layers } from 'lucide-react'
+import { Bot, Type, Globe, Image, Youtube, FileText, Trash2, Settings, Download, Upload, Plus, ChevronDown, Zap, UserSquare, Sun, Moon, Wand2, Mic, GitCompare, Layers, Eye } from 'lucide-react'
 import { useCanvas } from '../context/CanvasContext'
 import './Toolbar.css'
 
@@ -13,6 +13,7 @@ const nodeTypes = [
   { type: 'analysisNode', label: 'Analysis', icon: Zap, color: '#fbbf24', desc: 'Extract viral patterns' },
   { type: 'personaNode', label: 'Persona', icon: UserSquare, color: '#ff6b6b', desc: 'Brand voice & tone' },
   { type: 'crossReferenceNode', label: 'Cross-Reference', icon: GitCompare, color: '#ec4899', desc: 'Find contradictions & gaps' },
+  { type: 'lensNode', label: 'Lens', icon: Eye, color: '#e8832a', desc: 'Apply a library prompt' },
   { type: 'imageGeneratorNode', label: 'Image Gen', icon: Wand2, color: '#ff8aeb', desc: 'Nano Banana 2 / GPT-img' },
   { type: 'voiceAgentNode', label: 'Voice Agent', icon: Mic, color: '#fb923c', desc: 'Live Gemini Voice Call' },
 ]
