@@ -56,7 +56,7 @@ app.use(express.static(path.join(__dirname, 'dist')));
  * Supports both /api/transcript and /api/v1/youtube (unified)
  */
 app.get(['/api/transcript', '/api/v1/youtube'], authMiddleware, async (req, res) => {
-  const { videoId: queryVideoId, url: queryUrl, includeComments } = req.query;
+  const { videoId: queryVideoId, url: queryUrl, includeComments, force } = req.query;
   let videoId = queryVideoId;
 
   // Extract videoId from full URL if provided
@@ -67,6 +67,42 @@ app.get(['/api/transcript', '/api/v1/youtube'], authMiddleware, async (req, res)
 
   if (!videoId) {
     return res.status(400).json({ error: 'Missing videoId or url' });
+  }
+
+  const wantComments = includeComments === 'true';
+  const bypassCache = force === 'true' || force === '1';
+
+  // ── Cache lookup ──────────────────────────────────────────────────────────
+  // Serve from pop_transcripts unless the client forces a refresh, or asked for
+  // comments and the cached row has none yet.
+  if (!bypassCache) {
+    const { data: cached } = await supabase
+      .from('pop_transcripts')
+      .select('*')
+      .eq('video_id', videoId)
+      .maybeSingle();
+
+    if (cached && cached.transcript) {
+      const hasComments = Array.isArray(cached.comments) && cached.comments.length > 0;
+      if (!wantComments || hasComments) {
+        return res.json({
+          transcript: cached.transcript,
+          metadata: {
+            title: cached.title,
+            description: cached.description,
+            viewCount: cached.view_count,
+            likeCount: cached.like_count,
+            duration: cached.duration,
+            uploader: cached.uploader,
+            uploadDate: cached.upload_date,
+            comments: cached.comments || [],
+          },
+          via: `${cached.fetched_via || 'cache'}-cached`,
+          cached: true,
+          fetchedAt: cached.fetched_at,
+        });
+      }
+    }
   }
 
   try {
@@ -181,15 +217,39 @@ app.get(['/api/transcript', '/api/v1/youtube'], authMiddleware, async (req, res)
       }
     }
 
-    res.json({ 
+    // ── Upsert into cache (only if we actually got a transcript) ───────────
+    if (cleaned && cleaned.length > 0) {
+      const { error: upsertErr } = await supabase
+        .from('pop_transcripts')
+        .upsert({
+          video_id: videoId,
+          url: queryUrl || `https://www.youtube.com/watch?v=${videoId}`,
+          title: metadata.title,
+          uploader: metadata.uploader,
+          view_count: metadata.viewCount || null,
+          like_count: metadata.likeCount || null,
+          duration: metadata.duration || null,
+          upload_date: metadata.uploadDate || null,
+          description: metadata.description || null,
+          transcript: cleaned,
+          transcript_char_count: cleaned.length,
+          comments: metadata.comments || [],
+          fetched_via: via,
+          refreshed_at: new Date().toISOString(),
+        }, { onConflict: 'video_id' });
+      if (upsertErr) console.error('[Transcript cache upsert]:', upsertErr.message);
+    }
+
+    res.json({
       transcript: cleaned,
       metadata,
-      via
+      via,
+      cached: false,
     });
 
   } catch (err) {
     console.error('[API Error]:', err);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'ContentLoom was unable to fetch content: ' + err.message,
       detail: 'Ensure server dependencies are running properly.'
     });

@@ -198,21 +198,55 @@
   position: relative;
   width: 100%;
   height: 100%;
+  overflow: hidden;
 }
 
-.youtube-play-btn {
+.youtube-thumb-wrap .node-preview-img {
+  transition: transform 350ms ease, filter 350ms ease;
+}
+
+.youtube-thumb-wrap:hover .node-preview-img {
+  transform: scale(1.03);
+  filter: brightness(1.08);
+}
+
+.youtube-thumb-gradient {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 48px;
-  height: 48px;
-  background: rgba(0,0,0,0.7);
-  border-radius: 50%;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 55%, rgba(0,0,0,0.65) 100%);
+  pointer-events: none;
+}
+
+.youtube-duration-badge {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.85);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: var(--font-sans);
+  letter-spacing: 0.3px;
+  backdrop-filter: blur(4px);
+}
+
+.youtube-cache-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background: rgba(232, 131, 42, 0.92);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
   display: flex;
   align-items: center;
-  justify-content: center;
-  pointer-events: none;
+  gap: 3px;
 }
 
 /* ====== NODE CONTENT ====== */
@@ -663,45 +697,93 @@
 
 /* YouTube Specific Additions */
 .youtube-node {
-  border-color: rgba(255, 0, 0, 0.3) !important;
+  border-color: rgba(255, 0, 60, 0.32) !important;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 0, 60, 0.08) inset !important;
 }
 
 .youtube-node .node-header {
-  background: linear-gradient(90deg, rgba(255, 0, 0, 0.1), transparent) !important;
-  border-bottom-color: rgba(255, 0, 0, 0.2) !important;
+  background: linear-gradient(90deg, rgba(255, 0, 60, 0.16), transparent 60%) !important;
+  border-bottom-color: rgba(255, 0, 60, 0.22) !important;
 }
 
-.youtube-node-metadata {
-  color: #fff;
+/* Metadata strip — replaces old grid of boxes */
+.youtube-meta-strip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 10px;
+  background: linear-gradient(180deg, var(--bg-surface) 0%, var(--bg-card) 100%);
+  border-top: 1px solid var(--border-default);
+  border-bottom: 1px solid var(--border-default);
+  font-family: var(--font-sans);
+  flex-wrap: wrap;
 }
 
-.youtube-node .meta-box {
-  background: rgba(0, 0, 0, 0.2) !important;
-  border-color: rgba(255, 255, 255, 0.1) !important;
+.youtube-meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: 500;
 }
 
-.youtube-node .meta-box .truncate,
-.youtube-node .meta-box div:last-child {
-  color: #fff !important;
+.youtube-meta-item .meta-value {
+  color: var(--text-primary);
 }
 
-.youtube-node .meta-row.meta-success {
-  background: rgba(0, 255, 0, 0.1) !important;
-  border-color: rgba(0, 255, 0, 0.2) !important;
-  color: #a7f3d0 !important;
+.youtube-meta-sep {
+  color: var(--text-muted);
+  opacity: 0.5;
+  font-size: 11px;
 }
 
-.youtube-node button {
-  background: rgba(0, 0, 0, 0.2) !important;
-  border-color: rgba(255, 255, 255, 0.2) !important;
-  color: #ccc !important;
+/* Comments synced pill (compact) */
+.youtube-comments-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  background: rgba(74, 222, 128, 0.12);
+  color: #4ade80;
+  font-size: 10px;
+  font-weight: 600;
+  border: 1px solid rgba(74, 222, 128, 0.3);
 }
 
-.youtube-node button:hover:not(:disabled) {
-  background: rgba(255, 0, 0, 0.1) !important;
-  border-color: rgba(255, 0, 0, 0.4) !important;
-  color: #fff !important;
+/* Subtle dashed button when no comments synced yet */
+.youtube-sync-btn {
+  margin: 0 10px 8px;
+  width: calc(100% - 20px);
+  padding: 7px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px dashed var(--border-default);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: all 150ms ease;
 }
+
+.youtube-sync-btn:hover:not(:disabled) {
+  border-color: var(--accent-primary);
+  color: var(--text-primary);
+  background: var(--accent-subtle);
+}
+
+.youtube-sync-btn:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+/* Inherit standard action button styles (don't override the icon button colors here) */
 
 .ai-input-area {
   padding: 8px;

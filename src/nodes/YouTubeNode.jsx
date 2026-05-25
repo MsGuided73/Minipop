@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react'
 import { Handle, Position } from '@xyflow/react'
-import { X, Youtube, ExternalLink, Loader, FileText, AlertCircle, Edit, Check, MessageSquare } from 'lucide-react'
+import { X, Youtube, ExternalLink, Loader, FileText, AlertCircle, Edit, Check, MessageSquare, RefreshCw, Eye } from 'lucide-react'
 import { useCanvas } from '../context/CanvasContext'
 import './nodes.css'
 
@@ -17,6 +17,25 @@ function getVideoId(url) {
 function getThumbnailUrl(url) {
   const id = getVideoId(url)
   return id ? `https://img.youtube.com/vi/${id}/hqdefault.jpg` : null
+}
+
+// e.g. 1243891 → "1.2M", 12500 → "12.5K", 432 → "432"
+function formatCount(n) {
+  const num = Number(n)
+  if (!Number.isFinite(num) || num <= 0) return '—'
+  if (num >= 1_000_000) return (num / 1_000_000).toFixed(num >= 10_000_000 ? 0 : 1).replace(/\.0$/, '') + 'M'
+  if (num >= 1_000) return (num / 1_000).toFixed(num >= 10_000 ? 0 : 1).replace(/\.0$/, '') + 'K'
+  return String(num)
+}
+
+// e.g. 4523s → "1:15:23", 145s → "2:25"
+function formatDuration(seconds) {
+  const s = Number(seconds)
+  if (!Number.isFinite(s) || s <= 0) return null
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  const sec = Math.floor(s % 60).toString().padStart(2, '0')
+  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`
 }
 
 export default function YouTubeNode({ id, data, selected }) {
@@ -39,7 +58,7 @@ export default function YouTubeNode({ id, data, selected }) {
     e.stopPropagation()
     deleteNode(id)
   }, [id, deleteNode])
-  const fetchTranscript = useCallback(async (url, withComments = false) => {
+  const fetchTranscript = useCallback(async (url, withComments = false, force = false) => {
     if (!url) return
     const videoId = getVideoId(url)
     if (!videoId) return
@@ -51,10 +70,10 @@ export default function YouTubeNode({ id, data, selected }) {
     }
 
     try {
-      // 1. Try Local Proxy (Fastest + Highest Rate Limits)
+      // 1. Try Local Proxy (Fastest + Highest Rate Limits) — cache-first unless force=true
       try {
         // Use relative path so it works in both local dev (via Vite proxy) and production (via server.js)
-        const localProxyUrl = `/api/transcript?url=${encodeURIComponent(url)}&includeComments=${withComments}`
+        const localProxyUrl = `/api/transcript?url=${encodeURIComponent(url)}&includeComments=${withComments}${force ? '&force=true' : ''}`
         const localRes = await fetch(localProxyUrl)
         
         if (localRes.ok) {
@@ -75,17 +94,20 @@ export default function YouTubeNode({ id, data, selected }) {
             (meta.comments || []).map(c => `- [${c.author}]: ${c.text}`).join('\n')
           ].join('\n\n')
 
+          // Trust the server's `via` so cache hits (e.g. "poppy-vps-primary-cached") surface in the UI
+          const serverVia = localData.via || (withComments ? 'local-proxy-rich-comments' : 'local-proxy-fast')
+
           updateNode(id, {
             data: {
               label: meta.title || data.label,
               extractedText: groundedText,
               transcriptCharCount: transcript.length,
-              transcriptVia: withComments ? 'local-proxy-rich-comments' : 'local-proxy-fast',
+              transcriptVia: serverVia,
               videoMetadata: meta
             }
           })
-          
-          setVia(withComments ? 'local-proxy-rich-comments' : 'local-proxy-fast')
+
+          setVia(serverVia)
           setStatus('loaded')
           setFetchingComments(false)
           return 
@@ -183,6 +205,16 @@ export default function YouTubeNode({ id, data, selected }) {
               <Loader size={11} />
             </button>
           )}
+          {/* Force refresh: bypasses pop_transcripts cache and re-fetches from YouTube */}
+          {data.url && status === 'loaded' && (
+            <button
+              className="node-action-btn"
+              onClick={(e) => { e.stopPropagation(); fetchTranscript(data.url, false, true) }}
+              title="Re-fetch transcript (bypass cache)"
+            >
+              <RefreshCw size={11} />
+            </button>
+          )}
           {data.url && (
             <a href={data.url} target="_blank" rel="noopener noreferrer" className="node-action-btn" onClick={e => e.stopPropagation()}>
               <ExternalLink size={11} />
@@ -222,11 +254,17 @@ export default function YouTubeNode({ id, data, selected }) {
         ) : thumbnail ? (
           <div className="youtube-thumb-wrap">
             <img src={thumbnail} alt={data.label} className="node-preview-img" />
-            <div className="youtube-play-btn">
-              <svg viewBox="0 0 24 24" fill="white" width="32" height="32">
-                <path d="M8 5v14l11-7z"/>
-              </svg>
-            </div>
+            <div className="youtube-thumb-gradient" />
+            {via?.endsWith('-cached') && (
+              <span className="youtube-cache-badge" title="Loaded from transcript cache">
+                Cached
+              </span>
+            )}
+            {formatDuration(data.videoMetadata?.duration) && (
+              <span className="youtube-duration-badge">
+                {formatDuration(data.videoMetadata.duration)}
+              </span>
+            )}
           </div>
         ) : (
           <div className="node-preview-placeholder">
@@ -236,45 +274,52 @@ export default function YouTubeNode({ id, data, selected }) {
         )}
       </div>
 
-      {/* Metadata Summary (if available) */}
+      {/* Compact metadata strip + sync button */}
       {data.videoMetadata && !isEditing && (
-        <div className="youtube-node-metadata" style={{ padding: '10px', background: 'var(--bg-surface-hover)', borderRadius: '6px', margin: '8px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
-            <div className="meta-box" style={{ background: 'var(--bg-surface)', padding: '6px 8px', borderRadius: '4px', border: '1px solid var(--border-color)', fontSize: '11px' }}>
-              <div style={{ color: 'var(--text-muted)', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>Uploader</div>
-              <div className="truncate" style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{data.videoMetadata.uploader}</div>
-            </div>
-            <div className="meta-box" style={{ background: 'var(--bg-surface)', padding: '6px 8px', borderRadius: '4px', border: '1px solid var(--border-color)', fontSize: '11px' }}>
-              <div style={{ color: 'var(--text-muted)', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>Views</div>
-              <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{(data.videoMetadata.viewCount || 0).toLocaleString()}</div>
-            </div>
+        <>
+          <div className="youtube-meta-strip">
+            {data.videoMetadata.uploader && (
+              <>
+                <span className="youtube-meta-item" title={data.videoMetadata.uploader}>
+                  <Youtube size={11} color="#ff4070" />
+                  <span className="meta-value truncate" style={{ maxWidth: 110 }}>
+                    {data.videoMetadata.uploader}
+                  </span>
+                </span>
+                <span className="youtube-meta-sep">·</span>
+              </>
+            )}
+            <span className="youtube-meta-item" title={`${(data.videoMetadata.viewCount || 0).toLocaleString()} views`}>
+              <Eye size={11} />
+              <span className="meta-value">{formatCount(data.videoMetadata.viewCount)}</span>
+            </span>
+            {data.videoMetadata.comments?.length > 0 && (
+              <span className="youtube-comments-pill" title={`${data.videoMetadata.comments.length} comments synced`}>
+                <MessageSquare size={10} />
+                {data.videoMetadata.comments.length}
+              </span>
+            )}
           </div>
-          
-          {/* Comments Section / Sync Button */}
-          {data.videoMetadata.comments?.length > 0 ? (
-            <div className="meta-row meta-success" style={{ background: 'var(--bg-surface)', padding: '8px', borderRadius: '4px', border: '1px solid var(--border-color)', justifyContent: 'center' }}>
-              <MessageSquare size={12} />
-              <span style={{ fontWeight: 500, fontSize: '11px' }}>{data.videoMetadata.comments.length} Comments Synced</span>
-            </div>
-          ) : (
-            <button 
-              style={{ width: '100%', padding: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', background: 'var(--bg-surface)', border: '1px dashed var(--border-color)', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', color: 'var(--text-secondary)', transition: 'all 0.2s' }}
+
+          {!(data.videoMetadata.comments?.length > 0) && (
+            <button
+              className="youtube-sync-btn"
               onClick={(e) => {
                 e.stopPropagation();
                 if (fetchingComments) return;
                 setFetchingComments(true);
-                fetchTranscript(data.url, true); // True to include comments
+                fetchTranscript(data.url, true);
               }}
               disabled={fetchingComments}
             >
               {fetchingComments ? (
-                <><Loader size={12} className="animate-spin" /> Fetching Deep Context...</>
+                <><Loader size={11} className="spin" /> Fetching audience comments…</>
               ) : (
-                <><MessageSquare size={12} /> Sync Audience Comments</>
+                <><MessageSquare size={11} /> Sync audience comments</>
               )}
             </button>
           )}
-        </div>
+        </>
       )}
 
       {/* URL */}
