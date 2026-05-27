@@ -25,8 +25,9 @@ const PORT = process.env.PORT || 3000;
 
 // Initialize Supabase Client — degrade gracefully if not configured so PM2/systemd
 // doesn't crash-loop. Endpoints that need the DB return 503; YouTube scraping still works.
+// Accept SUPABASE_ANON_PUBLIC_KEY as a fallback name (used in our Coolify deploy).
 const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_ANON_KEY;
+const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_PUBLIC_KEY;
 let supabase = null;
 if (!supabaseUrl || !supabaseKey) {
   console.error('⚠️  WARNING: SUPABASE_URL and/or SUPABASE_ANON_KEY are not set.');
@@ -65,15 +66,24 @@ const authMiddleware = (req, res, next) => {
 
 // Health/diagnostics — no auth, no DB required. Use to confirm the server saw .env correctly.
 app.get('/api/health', (req, res) => {
+  // List env keys that look related so we can spot naming mismatches (keys only, never values).
+  const relevantEnvKeys = Object.keys(process.env)
+    .filter(k => /SUPA|ANON|APIFY|POPPY/i.test(k))
+    .sort();
+
   res.json({
     status: 'ok',
     supabaseConfigured: !!supabase,
     supabaseUrlSet: !!supabaseUrl,
+    supabaseUrlLength: supabaseUrl ? supabaseUrl.length : 0,
     supabaseKeySet: !!supabaseKey,
+    supabaseKeyLength: supabaseKey ? supabaseKey.length : 0,
     apifyConfigured: !!process.env.APIFY_API_TOKEN,
     apiKeyAuthEnabled: !!process.env.POPPY_API_KEY,
     nodeEnv: process.env.NODE_ENV || 'development',
     uptimeSec: Math.round(process.uptime()),
+    relevantEnvKeysFound: relevantEnvKeys,
+    cwd: process.cwd(),
   });
 });
 
