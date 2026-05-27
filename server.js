@@ -23,15 +23,30 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Initialize Supabase Client
+// Initialize Supabase Client — degrade gracefully if not configured so PM2/systemd
+// doesn't crash-loop. Endpoints that need the DB return 503; YouTube scraping still works.
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_ANON_KEY;
+let supabase = null;
 if (!supabaseUrl || !supabaseKey) {
-  console.error('FATAL: SUPABASE_URL and SUPABASE_ANON_KEY must be set in .env');
-  console.error('Copy .env.example to .env and fill in the values.');
-  process.exit(1);
+  console.error('⚠️  WARNING: SUPABASE_URL and/or SUPABASE_ANON_KEY are not set.');
+  console.error('⚠️  The server will start, but /api/v1/{boards,folders,prompts} will return 503');
+  console.error('⚠️  and the transcript cache (pop_transcripts) will be bypassed.');
+  console.error('⚠️  Fix: populate .env per .env.example.');
+} else {
+  supabase = createClient(supabaseUrl, supabaseKey);
 }
-const supabase = createClient(supabaseUrl, supabaseKey);
+
+// Middleware: short-circuit DB-dependent routes when Supabase isn't configured.
+const requireSupabase = (req, res, next) => {
+  if (!supabase) {
+    return res.status(503).json({
+      error: 'Database unavailable',
+      detail: 'SUPABASE_URL and SUPABASE_ANON_KEY are not configured on this server.',
+    });
+  }
+  next();
+};
 
 // Middleware
 app.use(cors());
@@ -74,8 +89,8 @@ app.get(['/api/transcript', '/api/v1/youtube'], authMiddleware, async (req, res)
 
   // ── Cache lookup ──────────────────────────────────────────────────────────
   // Serve from pop_transcripts unless the client forces a refresh, or asked for
-  // comments and the cached row has none yet.
-  if (!bypassCache) {
+  // comments and the cached row has none yet. Skipped entirely if Supabase isn't configured.
+  if (!bypassCache && supabase) {
     const { data: cached } = await supabase
       .from('pop_transcripts')
       .select('*')
@@ -217,8 +232,8 @@ app.get(['/api/transcript', '/api/v1/youtube'], authMiddleware, async (req, res)
       }
     }
 
-    // ── Upsert into cache (only if we actually got a transcript) ───────────
-    if (cleaned && cleaned.length > 0) {
+    // ── Upsert into cache (only if we actually got a transcript and Supabase is up) ──
+    if (cleaned && cleaned.length > 0 && supabase) {
       const { error: upsertErr } = await supabase
         .from('pop_transcripts')
         .upsert({
@@ -259,7 +274,7 @@ app.get(['/api/transcript', '/api/v1/youtube'], authMiddleware, async (req, res)
 /**
  * Boards API - Save/Load
  */
-app.get('/api/v1/boards', authMiddleware, async (req, res) => {
+app.get('/api/v1/boards', authMiddleware, requireSupabase, async (req, res) => {
   const { data, error } = await supabase.from('pop_boards').select('id, name, folder_id, created_at');
   
   if (error) {
@@ -276,7 +291,7 @@ app.get('/api/v1/boards', authMiddleware, async (req, res) => {
   res.json(summary);
 });
 
-app.post('/api/v1/boards', authMiddleware, async (req, res) => {
+app.post('/api/v1/boards', authMiddleware, requireSupabase, async (req, res) => {
   const board = req.body;
   if (!board.id || !board.nodes) return res.status(400).json({ error: 'Invalid board data' });
   
@@ -297,7 +312,7 @@ app.post('/api/v1/boards', authMiddleware, async (req, res) => {
   res.json({ success: true, id: board.id });
 });
 
-app.get('/api/v1/boards/:id', authMiddleware, async (req, res) => {
+app.get('/api/v1/boards/:id', authMiddleware, requireSupabase, async (req, res) => {
   const { data, error } = await supabase.from('pop_boards').select('*').eq('id', req.params.id).single();
   
   if (error) {
@@ -319,7 +334,7 @@ app.get('/api/v1/boards/:id', authMiddleware, async (req, res) => {
 /**
  * Folders API - Save/Load/Delete
  */
-app.get('/api/v1/folders', authMiddleware, async (req, res) => {
+app.get('/api/v1/folders', authMiddleware, requireSupabase, async (req, res) => {
   const { data, error } = await supabase.from('pop_folders').select('*');
   
   if (error) {
@@ -337,7 +352,7 @@ app.get('/api/v1/folders', authMiddleware, async (req, res) => {
   res.json(folders);
 });
 
-app.post('/api/v1/folders', authMiddleware, async (req, res) => {
+app.post('/api/v1/folders', authMiddleware, requireSupabase, async (req, res) => {
   const folder = req.body;
   if (!folder.id || !folder.name) return res.status(400).json({ error: 'Invalid folder data' });
   
@@ -356,7 +371,7 @@ app.post('/api/v1/folders', authMiddleware, async (req, res) => {
   res.json({ success: true, id: folder.id });
 });
 
-app.delete('/api/v1/folders/:id', authMiddleware, async (req, res) => {
+app.delete('/api/v1/folders/:id', authMiddleware, requireSupabase, async (req, res) => {
   const { error } = await supabase.from('pop_folders').delete().eq('id', req.params.id);
   
   if (error) {
@@ -386,7 +401,7 @@ function mapPromptRow(row) {
   };
 }
 
-app.get('/api/v1/prompts', authMiddleware, async (req, res) => {
+app.get('/api/v1/prompts', authMiddleware, requireSupabase, async (req, res) => {
   let query = supabase.from('pop_prompts').select('*').order('created_at', { ascending: false });
   if (req.query.tag) query = query.contains('tags', [req.query.tag]);
   const { data, error } = await query;
@@ -397,13 +412,13 @@ app.get('/api/v1/prompts', authMiddleware, async (req, res) => {
   res.json(data.map(mapPromptRow));
 });
 
-app.get('/api/v1/prompts/:id', authMiddleware, async (req, res) => {
+app.get('/api/v1/prompts/:id', authMiddleware, requireSupabase, async (req, res) => {
   const { data, error } = await supabase.from('pop_prompts').select('*').eq('id', req.params.id).single();
   if (error || !data) return res.status(404).json({ error: 'Prompt not found' });
   res.json(mapPromptRow(data));
 });
 
-app.post('/api/v1/prompts', authMiddleware, async (req, res) => {
+app.post('/api/v1/prompts', authMiddleware, requireSupabase, async (req, res) => {
   const p = req.body;
   if (!p.title || !p.body) return res.status(400).json({ error: 'title and body are required' });
   const insert = {
@@ -424,7 +439,7 @@ app.post('/api/v1/prompts', authMiddleware, async (req, res) => {
   res.json(mapPromptRow(data));
 });
 
-app.put('/api/v1/prompts/:id', authMiddleware, async (req, res) => {
+app.put('/api/v1/prompts/:id', authMiddleware, requireSupabase, async (req, res) => {
   const p = req.body;
   const update = {
     ...(p.title !== undefined && { title: p.title }),
@@ -444,7 +459,7 @@ app.put('/api/v1/prompts/:id', authMiddleware, async (req, res) => {
   res.json(mapPromptRow(data));
 });
 
-app.delete('/api/v1/prompts/:id', authMiddleware, async (req, res) => {
+app.delete('/api/v1/prompts/:id', authMiddleware, requireSupabase, async (req, res) => {
   // Block deletion of seed prompts; encourage variations instead
   const { data: existing } = await supabase.from('pop_prompts').select('is_seed').eq('id', req.params.id).single();
   if (existing?.is_seed) return res.status(400).json({ error: 'Seed prompts cannot be deleted. Save a variation instead.' });
@@ -461,7 +476,7 @@ app.delete('/api/v1/prompts/:id', authMiddleware, async (req, res) => {
  * Knowledge Query API (Embed Tool)
  * Allows external apps to "Ask" a board a question.
  */
-app.post('/api/v1/boards/:id/query', authMiddleware, async (req, res) => {
+app.post('/api/v1/boards/:id/query', authMiddleware, requireSupabase, async (req, res) => {
   const { data: board, error } = await supabase.from('pop_boards').select('*').eq('id', req.params.id).single();
   if (error || !board) return res.status(404).json({ error: 'Board not found' });
 
