@@ -84,16 +84,22 @@ export function pickPrimarySourceLabel(targetNodeId, nodes, edges) {
 
 // ─── REST API wrappers ───────────────────────────────────────────────────────
 
+async function parseError(res, fallback) {
+  const body = await res.json().catch(() => ({}))
+  const parts = [body.error || fallback, body.detail].filter(Boolean)
+  return new Error(`${parts.join(' — ')} (HTTP ${res.status})`)
+}
+
 export async function listPrompts(tag = null) {
   const url = tag ? `/api/v1/prompts?tag=${encodeURIComponent(tag)}` : '/api/v1/prompts'
   const res = await fetch(url)
-  if (!res.ok) throw new Error('Failed to load prompts')
+  if (!res.ok) throw await parseError(res, 'Failed to load prompts')
   return res.json()
 }
 
 export async function getPrompt(id) {
   const res = await fetch(`/api/v1/prompts/${id}`)
-  if (!res.ok) throw new Error('Prompt not found')
+  if (!res.ok) throw await parseError(res, 'Prompt not found')
   return res.json()
 }
 
@@ -103,7 +109,7 @@ export async function createPrompt(payload) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   })
-  if (!res.ok) throw new Error('Failed to create prompt')
+  if (!res.ok) throw await parseError(res, 'Failed to create prompt')
   return res.json()
 }
 
@@ -113,16 +119,13 @@ export async function updatePrompt(id, payload) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   })
-  if (!res.ok) throw new Error('Failed to update prompt')
+  if (!res.ok) throw await parseError(res, 'Failed to update prompt')
   return res.json()
 }
 
 export async function deletePrompt(id) {
   const res = await fetch(`/api/v1/prompts/${id}`, { method: 'DELETE' })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error(err.error || 'Failed to delete prompt')
-  }
+  if (!res.ok) throw await parseError(res, 'Failed to delete prompt')
   return res.json()
 }
 

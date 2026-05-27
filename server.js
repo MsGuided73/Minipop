@@ -63,6 +63,20 @@ const authMiddleware = (req, res, next) => {
   next();
 };
 
+// Health/diagnostics — no auth, no DB required. Use to confirm the server saw .env correctly.
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    supabaseConfigured: !!supabase,
+    supabaseUrlSet: !!supabaseUrl,
+    supabaseKeySet: !!supabaseKey,
+    apifyConfigured: !!process.env.APIFY_API_TOKEN,
+    apiKeyAuthEnabled: !!process.env.POPPY_API_KEY,
+    nodeEnv: process.env.NODE_ENV || 'development',
+    uptimeSec: Math.round(process.uptime()),
+  });
+});
+
 // Serve static files from React build (dist)
 app.use(express.static(path.join(__dirname, 'dist')));
 
