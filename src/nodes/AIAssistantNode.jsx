@@ -3,6 +3,7 @@ import { Handle, Position, useReactFlow, useEdges, useNodes } from '@xyflow/reac
 import { X, Send, Bot, User, Loader, Sparkles, RefreshCw, ChevronDown, Copy, Check, Trash2, Wand2, Globe, Download } from 'lucide-react'
 import { useCanvas } from '../context/CanvasContext'
 import { callAI, buildAIContext, resolveConnectedNodeIds } from '../services/aiService'
+import { useNodeReader, NodeReaderBar } from '../components/NodeReader'
 import './nodes.css'
 
 export default function AIAssistantNode({ id, data, selected }) {
@@ -15,6 +16,7 @@ export default function AIAssistantNode({ id, data, selected }) {
   const [copiedMsgId, setCopiedMsgId] = useState(null)
   const isGemini = state.model?.startsWith('gemini')
   const [contextPreview, setContextPreview] = useState(false)
+  const reader = useNodeReader({ id, initialFontSize: data.fontSize, defaultFontSize: 12 })
 
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
@@ -185,8 +187,22 @@ export default function AIAssistantNode({ id, data, selected }) {
         </div>
       )}
 
+      {/* Reader controls (search + font size) — only when there are messages */}
+      {messages.length > 0 && (
+        <NodeReaderBar
+          reader={reader}
+          placeholder="Find in chat…"
+          matchCount={reader.countMatches(messages.map(m => m.content))}
+          compact
+        />
+      )}
+
       {/* Messages */}
-      <div className="ai-messages nopan node-scrollable" onClick={e => e.stopPropagation()}>
+      <div
+        className="ai-messages nopan node-scrollable"
+        onClick={e => e.stopPropagation()}
+        style={{ fontSize: reader.fontSize }}
+      >
         {messages.length === 0 ? (
           <div className="ai-empty-state">
             <Wand2 size={28} opacity={0.3} />
@@ -212,7 +228,7 @@ export default function AIAssistantNode({ id, data, selected }) {
               )}
               <div className="ai-message-bubble">
                 <div className="ai-message-content">
-                  {formatMessageContent(msg.content)}
+                  {formatMessageContent(msg.content, reader.highlight)}
                 </div>
                 <div className="ai-message-actions">
                   <button
@@ -293,14 +309,15 @@ export default function AIAssistantNode({ id, data, selected }) {
   )
 }
 
-function formatMessageContent(content) {
+function formatMessageContent(content, highlight) {
   if (!content) return null;
+  const h = highlight || (s => s)
   return content.split('\n').map((line, i) => {
     const parts = line.split(/(\*\*[^*]+\*\*)/g).map((part, j) => {
       if (part.startsWith('**') && part.endsWith('**')) {
-        return <strong key={j}>{part.slice(2, -2)}</strong>
+        return <strong key={j}>{h(part.slice(2, -2))}</strong>
       }
-      return part
+      return <React.Fragment key={j}>{h(part)}</React.Fragment>
     })
     return <span key={i}>{parts}<br /></span>
   })

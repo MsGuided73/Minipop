@@ -31,6 +31,7 @@ import SemanticEdge from './components/SemanticEdge'
 import ImageGeneratorNode from './nodes/ImageGeneratorNode'
 import VoiceAgentNode from './nodes/VoiceAgentNode'
 import LensNode from './nodes/LensNode'
+import TranscriptNode from './nodes/TranscriptNode'
 import { renderPrompt } from './services/promptService'
 import './App.css'
 
@@ -49,6 +50,7 @@ const NODE_TYPES = {
   imageGeneratorNode: ImageGeneratorNode,
   voiceAgentNode: VoiceAgentNode,
   lensNode: LensNode,
+  transcriptNode: TranscriptNode,
 }
 
 // Register edge types
@@ -290,6 +292,48 @@ function CanvasApp() {
     }
     return id
   }, [nodes, setNodes, setEdges])
+
+  // Spawn a TranscriptNode from a YouTube source node. Positions it to the right,
+  // auto-connects an edge, and copies transcript + metadata into the new node's data.
+  const handleSpawnTranscriptNode = useCallback((sourceNodeId) => {
+    const source = nodes.find(n => n.id === sourceNodeId)
+    if (!source) return null
+
+    const w = source.measured?.width || source.width || 320
+    const pos = { x: source.position.x + w + 80, y: source.position.y }
+    const id = crypto.randomUUID()
+    const meta = source.data?.videoMetadata || {}
+
+    const newNode = {
+      id,
+      type: 'transcriptNode',
+      position: pos,
+      data: {
+        label: meta.title || source.data?.label || 'Transcript',
+        transcript: source.data?.rawTranscript || '',
+        videoUrl: source.data?.url || '',
+        uploader: meta.uploader || '',
+        viewCount: meta.viewCount || 0,
+        duration: meta.duration || 0,
+        sourceVideoNodeId: source.id,
+      },
+    }
+    setNodes(nds => [...nds, newNode])
+    setEdges(eds => [...eds, {
+      id: `e-${source.id}-${id}`,
+      source: source.id,
+      target: id,
+      type: 'semantic',
+      animated: true,
+    }])
+    return id
+  }, [nodes, setNodes, setEdges])
+
+  // Bridge: a global function YouTube nodes can call to spawn their transcript node
+  useEffect(() => {
+    window.__contentloomSpawnTranscript = handleSpawnTranscriptNode
+    return () => { delete window.__contentloomSpawnTranscript }
+  }, [handleSpawnTranscriptNode])
 
   // File drop handler
   const handleDrop = useCallback(async (e) => {
@@ -665,6 +709,7 @@ function getNodeDefaults(type) {
     case 'voiceAgentNode': return { label: 'Voice Agent' }
     case 'groupNode': return { label: 'Grouping Window' }
     case 'lensNode': return { label: 'Lens', promptTitle: '', promptBody: '', renderedPrompt: '', values: {}, report: '' }
+    case 'transcriptNode': return { label: 'Transcript', transcript: '', videoUrl: '', uploader: '', viewCount: 0, duration: 0 }
     default: return { label: type }
   }
 }
@@ -681,6 +726,7 @@ function getNodeMinimapColor(type) {
     case 'crossReferenceNode': return '#ec4899'
     case 'groupNode': return '#7c5cfc'
     case 'lensNode': return '#e8832a'
+    case 'transcriptNode': return '#a78bfa'
     default: return '#a78bfa'
   }
 }

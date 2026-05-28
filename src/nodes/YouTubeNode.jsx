@@ -101,6 +101,7 @@ export default function YouTubeNode({ id, data, selected }) {
             data: {
               label: meta.title || data.label,
               extractedText: groundedText,
+              rawTranscript: transcript,
               transcriptCharCount: transcript.length,
               transcriptVia: serverVia,
               videoMetadata: meta
@@ -203,6 +204,21 @@ export default function YouTubeNode({ id, data, selected }) {
               title="Retry transcript fetch"
             >
               <Loader size={11} />
+            </button>
+          )}
+          {/* Open transcript as its own node (with copy/export controls) */}
+          {data.rawTranscript && (
+            <button
+              className="node-action-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (window.__contentloomSpawnTranscript) {
+                  window.__contentloomSpawnTranscript(id);
+                }
+              }}
+              title="Open transcript in a new node"
+            >
+              <FileText size={11} />
             </button>
           )}
           {/* Force refresh: bypasses pop_transcripts cache and re-fetches from YouTube */}

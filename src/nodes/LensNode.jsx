@@ -4,6 +4,7 @@ import { X, Eye, Play, Copy, Check, Trash2, Loader, AlertCircle, FileText, Edit3
 import { useCanvas } from '../context/CanvasContext'
 import { callLensChat, LENS_KICKOFF, resolveConnectedNodeIds } from '../services/aiService'
 import { renderPrompt } from '../services/promptService'
+import { useNodeReader, NodeReaderBar } from '../components/NodeReader'
 import './nodes.css'
 
 export default function LensNode({ id, data, selected }) {
@@ -21,6 +22,7 @@ export default function LensNode({ id, data, selected }) {
   const [showSystemPrompt, setShowSystemPrompt] = useState(false)
 
   const messages = data.messages || []
+  const reader = useNodeReader({ id, initialFontSize: data.fontSize, defaultFontSize: 11 })
   const renderedPrompt = useMemo(
     () => data.renderedPrompt || (data.promptBody ? renderPrompt(data.promptBody, data.values || {}) : ''),
     [data.renderedPrompt, data.promptBody, data.values]
@@ -365,6 +367,12 @@ export default function LensNode({ id, data, selected }) {
         {/* ── Chat mode: after first run ── */}
         {hasStarted && (
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+            <NodeReaderBar
+              reader={reader}
+              placeholder="Find in conversation…"
+              matchCount={reader.countMatches(visibleMessages.map(m => m.content))}
+              compact
+            />
             {showSystemPrompt && (
               <div style={{
                 padding: 10,
@@ -408,13 +416,13 @@ export default function LensNode({ id, data, selected }) {
                     border: m.role === 'user' ? 'none' : '1px solid var(--border-default)',
                     borderRadius: 'var(--radius-md)',
                     padding: '8px 10px',
-                    fontSize: 11,
+                    fontSize: reader.fontSize,
                     lineHeight: 1.5,
                     maxWidth: '85%',
                     whiteSpace: 'pre-wrap',
                     position: 'relative',
                   }}>
-                    {m.content}
+                    {reader.highlight(m.content)}
                     {m.role === 'assistant' && (
                       <button
                         onClick={() => handleCopyMessage(m.content, i)}

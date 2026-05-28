@@ -3,6 +3,7 @@ import { Handle, Position, useReactFlow, useEdges, useNodes } from '@xyflow/reac
 import { X, Zap, Sparkles, Copy, Check, Trash2, Brain, Loader, AlertCircle, FileText } from 'lucide-react'
 import { useCanvas } from '../context/CanvasContext'
 import { analyzeViralPatterns, resolveConnectedNodeIds } from '../services/aiService'
+import { useNodeReader, NodeReaderBar } from '../components/NodeReader'
 import './nodes.css'
 
 export default function AnalysisNode({ id, data, selected }) {
@@ -15,6 +16,7 @@ export default function AnalysisNode({ id, data, selected }) {
 
   // Messages/Report content
   const report = data.report || ''
+  const reader = useNodeReader({ id, initialFontSize: data.fontSize, defaultFontSize: 12 })
   
   const allEdges = useEdges()
   const allNodes = useNodes()
@@ -151,9 +153,15 @@ export default function AnalysisNode({ id, data, selected }) {
                 {copied ? 'Copied' : 'Copy'}
               </button>
             </div>
-            <div className="report-body">
+            <NodeReaderBar
+              reader={reader}
+              placeholder="Find in report…"
+              matchCount={reader.countMatches(report)}
+              compact
+            />
+            <div className="report-body" style={{ fontSize: reader.fontSize }}>
               {report.split('\n').map((line, i) => (
-                <p key={i}>{line}</p>
+                <p key={i}>{reader.highlight(line)}</p>
               ))}
             </div>
           </div>

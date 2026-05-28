@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect } from 'react'
 import { Handle, Position } from '@xyflow/react'
 import { X, Type, Edit2, Check } from 'lucide-react'
 import { useCanvas } from '../context/CanvasContext'
+import { useNodeReader, NodeReaderBar } from '../components/NodeReader'
 import './nodes.css'
 
 export default function TextNode({ id, data, selected }) {
@@ -9,6 +10,7 @@ export default function TextNode({ id, data, selected }) {
   const [editingContent, setEditingContent] = useState(false)
   const [contentVal, setContentVal] = useState(data.content || '')
   const [labelVal, setLabelVal] = useState(data.label || 'Note')
+  const reader = useNodeReader({ id, initialFontSize: data.fontSize, defaultFontSize: 13 })
 
   // Keep local state in sync if data changes externally
   useEffect(() => {
@@ -88,6 +90,16 @@ export default function TextNode({ id, data, selected }) {
         </div>
       </div>
 
+      {/* Reader bar shows only in read mode with content */}
+      {!editingContent && contentVal && (
+        <NodeReaderBar
+          reader={reader}
+          placeholder="Find in note…"
+          matchCount={reader.countMatches(contentVal)}
+          compact
+        />
+      )}
+
       {/* Content */}
       <div className="node-content text-node-content">
         {editingContent ? (
@@ -100,15 +112,17 @@ export default function TextNode({ id, data, selected }) {
             onClick={e => e.stopPropagation()}
             placeholder="Type your notes here... The AI can read this!"
             rows={5}
+            style={{ fontSize: reader.fontSize }}
           />
         ) : (
           <div
             className="text-node-display nopan"
             onDoubleClick={(e) => { e.stopPropagation(); setEditingContent(true) }}
             title="Double-click to edit"
+            style={{ fontSize: reader.fontSize }}
           >
             {contentVal
-              ? contentVal
+              ? reader.highlight(contentVal)
               : <span className="text-muted">Double-click to add text...</span>
             }
           </div>

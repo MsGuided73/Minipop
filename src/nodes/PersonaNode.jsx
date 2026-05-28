@@ -2,6 +2,7 @@ import React, { useState, useCallback } from 'react'
 import { Handle, Position } from '@xyflow/react'
 import { X, UserSquare, Shield, Target, MessageSquare, Zap, Check, Save } from 'lucide-react'
 import { useCanvas } from '../context/CanvasContext'
+import { useNodeReader, NodeReaderBar } from '../components/NodeReader'
 import './nodes.css'
 
 export default function PersonaNode({ id, data, selected }) {
@@ -18,6 +19,8 @@ export default function PersonaNode({ id, data, selected }) {
     rules: data.rules || '',
     forbidden: data.forbidden || ''
   })
+
+  const reader = useNodeReader({ id, initialFontSize: data.fontSize, defaultFontSize: 11 })
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -49,7 +52,7 @@ FORBIDDEN: ${formData.forbidden}
   }
 
   return (
-    <div className={`node persona-node ${selected ? 'node--selected' : ''}`} style={{ width: 260, minHeight: isEditing ? 400 : 180 }}>
+    <div className={`node persona-node ${selected ? 'node--selected' : ''}`} style={{ width: 300, minHeight: isEditing ? 400 : (formData.styleProfile ? 320 : 180) }}>
       {/* Target/Source handles */}
       <Handle type="target" position={Position.Left} id="target" />
       <Handle type="source" position={Position.Right} id="source" />
@@ -137,13 +140,51 @@ FORBIDDEN: ${formData.forbidden}
               <MessageSquare size={12} />
               <span><strong>Tone:</strong> {formData.tone === 'Custom' ? formData.customTone : formData.tone}</span>
             </div>
+
             {formData.styleProfile && (
-              <div className="preview-style-profile">
-                <strong>Writing Profile Loaded</strong>
-                <p>{formData.styleProfile.substring(0, 100)}...</p>
+              <div className="preview-style-profile" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <strong>Writing Style Profile</strong>
+                <NodeReaderBar
+                  reader={reader}
+                  placeholder="Find in profile…"
+                  matchCount={reader.countMatches([formData.styleProfile, formData.rules, formData.forbidden])}
+                  compact
+                />
+                <div
+                  style={{
+                    maxHeight: 200,
+                    overflowY: 'auto',
+                    fontSize: reader.fontSize,
+                    lineHeight: 1.55,
+                    whiteSpace: 'pre-wrap',
+                    color: 'var(--text-primary)',
+                    background: 'var(--bg-card)',
+                    border: '1px solid var(--border-default)',
+                    borderRadius: 'var(--radius-sm)',
+                    padding: '6px 8px',
+                  }}
+                >
+                  {reader.highlight(formData.styleProfile)}
+                </div>
               </div>
             )}
-            <div className="preview-hint">
+
+            {(formData.rules || formData.forbidden) && (
+              <div style={{ marginTop: 10, fontSize: reader.fontSize, lineHeight: 1.5, color: 'var(--text-secondary)' }}>
+                {formData.rules && (
+                  <div style={{ marginBottom: 4 }}>
+                    <strong style={{ color: 'var(--text-primary)' }}>Rules:</strong> {reader.highlight(formData.rules)}
+                  </div>
+                )}
+                {formData.forbidden && (
+                  <div>
+                    <strong style={{ color: 'var(--text-primary)' }}>Forbidden:</strong> {reader.highlight(formData.forbidden)}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="preview-hint" style={{ marginTop: 8 }}>
               Connect this node to an AI Assistant to apply this brand voice.
             </div>
           </div>

@@ -14,6 +14,7 @@ const nodeTypes = [
   { type: 'personaNode', label: 'Persona', icon: UserSquare, color: '#ff6b6b', desc: 'Brand voice & tone' },
   { type: 'crossReferenceNode', label: 'Cross-Reference', icon: GitCompare, color: '#ec4899', desc: 'Find contradictions & gaps' },
   { type: 'lensNode', label: 'Lens', icon: Eye, color: '#e8832a', desc: 'Apply a library prompt' },
+  { type: 'transcriptNode', label: 'Transcript', icon: FileText, color: '#a78bfa', desc: 'Open a video transcript' },
   { type: 'imageGeneratorNode', label: 'Image Gen', icon: Wand2, color: '#ff8aeb', desc: 'Nano Banana 2 / GPT-img' },
   { type: 'voiceAgentNode', label: 'Voice Agent', icon: Mic, color: '#fb923c', desc: 'Live Gemini Voice Call' },
 ]

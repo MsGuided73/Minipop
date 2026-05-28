@@ -3,6 +3,7 @@ import { Handle, Position, useReactFlow, useEdges, useNodes } from '@xyflow/reac
 import { X, GitCompare, Copy, Check, Trash2, Loader, AlertCircle, FileText, RefreshCw, Sparkles, Table2 } from 'lucide-react'
 import { useCanvas } from '../context/CanvasContext'
 import { generateCrossReference, generateCrossReferenceTable, resolveConnectedNodeIds } from '../services/aiService'
+import { useNodeReader, NodeReaderBar } from '../components/NodeReader'
 import './nodes.css'
 
 export default function CrossReferenceNode({ id, data, selected }) {
@@ -17,6 +18,7 @@ export default function CrossReferenceNode({ id, data, selected }) {
   // Report content
   const report = data.report || ''
   const tableData = data.tableData || ''
+  const reader = useNodeReader({ id, initialFontSize: data.fontSize, defaultFontSize: 12 })
   
   const allEdges = useEdges()
   const allNodes = useNodes()
@@ -209,8 +211,14 @@ export default function CrossReferenceNode({ id, data, selected }) {
                 {copied ? 'Copied' : 'Copy'}
               </button>
             </div>
-            <div className="report-body" style={{ whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>
-              {report}
+            <NodeReaderBar
+              reader={reader}
+              placeholder="Find in report…"
+              matchCount={reader.countMatches([report, tableData])}
+              compact
+            />
+            <div className="report-body" style={{ whiteSpace: 'pre-wrap', lineHeight: '1.6', fontSize: reader.fontSize }}>
+              {reader.highlight(report)}
             </div>
 
             {tableLoading && (
