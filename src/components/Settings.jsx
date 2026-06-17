@@ -115,8 +115,13 @@ export default function Settings() {
 
         {/* API Keys */}
         <div className="settings-section">
-          {/* ... existing API key inputs ... */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
+          {/* Wrapped in a form with autoComplete="off" so browsers don't prompt to save
+              these as passwords (they're API keys) and Enter saves both keys. */}
+          <form
+            onSubmit={(e) => { e.preventDefault(); handleSave(); }}
+            autoComplete="off"
+            style={{ display: 'flex', flexDirection: 'column', gap: 15 }}
+          >
             <div>
               <label className="settings-label">
                 <Key size={13} /> OpenAI API Key
@@ -127,6 +132,8 @@ export default function Settings() {
                 placeholder="sk-proj-..."
                 value={apiKeyInput}
                 onChange={e => setApiKeyInput(e.target.value)}
+                autoComplete="off"
+                name="openai-api-key"
               />
             </div>
             <div>
@@ -139,9 +146,13 @@ export default function Settings() {
                 placeholder="AIzaSy..."
                 value={geminiKeyInput}
                 onChange={e => setGeminiKeyInput(e.target.value)}
+                autoComplete="off"
+                name="google-ai-api-key"
               />
             </div>
-          </div>
+            {/* Hidden submit so Enter in either field triggers handleSave */}
+            <button type="submit" style={{ display: 'none' }} aria-hidden="true" tabIndex={-1} />
+          </form>
           
           <div className="settings-disclaimer" style={{ marginTop: 15, padding: '10px', backgroundColor: 'rgba(255,165,0,0.1)', border: '1px solid rgba(255,165,0,0.3)', borderRadius: '6px', fontSize: '12px', display: 'flex', alignItems: 'flex-start', gap: '8px', color: '#ffb84d' }}>
             <AlertCircle size={14} style={{ flexShrink: 0, marginTop: '2px' }} />
