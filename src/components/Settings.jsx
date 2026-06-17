@@ -111,6 +111,8 @@ export default function Settings() {
           </button>
         </div>
 
+        <div className="settings-body">
+
         {/* API Keys */}
         <div className="settings-section">
           {/* ... existing API key inputs ... */}
@@ -243,6 +245,8 @@ export default function Settings() {
             <span className="settings-info-val">{state.edges.length}</span>
           </div>
         </div>
+
+        </div> {/* /settings-body */}
       </div>
     </div>
   )

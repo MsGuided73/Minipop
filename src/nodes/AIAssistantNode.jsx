@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react'
-import { Handle, Position, useReactFlow, useEdges, useNodes } from '@xyflow/react'
+import { Handle, Position, NodeResizer, useReactFlow, useEdges, useNodes } from '@xyflow/react'
 import { X, Send, Bot, User, Loader, Sparkles, RefreshCw, ChevronDown, Copy, Check, Trash2, Wand2, Globe, Download } from 'lucide-react'
 import { useCanvas } from '../context/CanvasContext'
 import { callAI, buildAIContext, resolveConnectedNodeIds } from '../services/aiService'
@@ -128,7 +128,8 @@ export default function AIAssistantNode({ id, data, selected }) {
   ]
 
   return (
-    <div className={`node ai-node ${selected ? 'node--selected' : ''}`} style={{ width: 320, height: 400 }}>
+    <div className={`node ai-node ${selected ? 'node--selected' : ''}`} style={{ width: '100%', height: '100%', minWidth: 300, minHeight: 360 }}>
+      <NodeResizer minWidth={300} minHeight={360} isVisible={selected} />
       {/* Handles */}
       <Handle type="target" position={Position.Left} id="target" />
       <Handle type="source" position={Position.Right} id="out" />

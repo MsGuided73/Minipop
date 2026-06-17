@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react'
-import { Handle, Position } from '@xyflow/react'
+import { Handle, Position, NodeResizer } from '@xyflow/react'
 import { X, Type, Edit2, Check } from 'lucide-react'
 import { useCanvas } from '../context/CanvasContext'
 import { useNodeReader, NodeReaderBar } from '../components/NodeReader'
@@ -51,7 +51,8 @@ export default function TextNode({ id, data, selected }) {
   }, [id, labelVal, updateNode])
 
   return (
-    <div className={`node text-node ${selected ? 'node--selected' : ''}`}>
+    <div className={`node text-node ${selected ? 'node--selected' : ''}`} style={{ width: '100%', height: '100%', minWidth: 240, minHeight: 160 }}>
+      <NodeResizer minWidth={240} minHeight={160} isVisible={selected} />
       <Handle type="source" position={Position.Right} id="source" />
       <Handle type="target" position={Position.Left} id="target" />
 

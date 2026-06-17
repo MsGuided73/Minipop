@@ -1,5 +1,5 @@
 import React, { useCallback, useRef, useState, useEffect } from 'react'
-import { Handle, Position } from '@xyflow/react'
+import { Handle, Position, NodeResizer } from '@xyflow/react'
 import { X, FileText, Copy, Check, Download, Printer, Type as TypeIcon } from 'lucide-react'
 import { useCanvas } from '../context/CanvasContext'
 import { useNodeReader, NodeReaderBar } from '../components/NodeReader'
@@ -123,7 +123,8 @@ export default function TranscriptNode({ id, data, selected }) {
   }
 
   return (
-    <div className={`node ${selected ? 'node--selected' : ''}`} style={{ width: 460, height: 600 }}>
+    <div className={`node ${selected ? 'node--selected' : ''}`} style={{ width: '100%', height: '100%', minWidth: 360, minHeight: 380 }}>
+      <NodeResizer minWidth={360} minHeight={380} isVisible={selected} />
       <Handle type="target" position={Position.Left} id="target" />
       <Handle type="source" position={Position.Right} id="source" />
 

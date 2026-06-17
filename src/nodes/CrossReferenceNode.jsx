@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react'
-import { Handle, Position, useReactFlow, useEdges, useNodes } from '@xyflow/react'
+import { Handle, Position, NodeResizer, useReactFlow, useEdges, useNodes } from '@xyflow/react'
 import { X, GitCompare, Copy, Check, Trash2, Loader, AlertCircle, FileText, RefreshCw, Sparkles, Table2 } from 'lucide-react'
 import { useCanvas } from '../context/CanvasContext'
 import { generateCrossReference, generateCrossReferenceTable, resolveConnectedNodeIds } from '../services/aiService'
@@ -124,7 +124,8 @@ export default function CrossReferenceNode({ id, data, selected }) {
   }
 
   return (
-    <div className={`node cr-node ${selected ? 'node--selected' : ''}`} style={{ width: 480, height: 420 }}>
+    <div className={`node cr-node ${selected ? 'node--selected' : ''}`} style={{ width: '100%', height: '100%', minWidth: 380, minHeight: 360 }}>
+      <NodeResizer minWidth={380} minHeight={360} isVisible={selected} />
       <Handle type="target" position={Position.Left} id="target" />
       <Handle type="source" position={Position.Right} id="source" />
 

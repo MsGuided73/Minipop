@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react'
-import { Handle, Position } from '@xyflow/react'
+import { Handle, Position, NodeResizer } from '@xyflow/react'
 import { X, UserSquare, Shield, Target, MessageSquare, Zap, Check, Save } from 'lucide-react'
 import { useCanvas } from '../context/CanvasContext'
 import { useNodeReader, NodeReaderBar } from '../components/NodeReader'
@@ -52,7 +52,11 @@ FORBIDDEN: ${formData.forbidden}
   }
 
   return (
-    <div className={`node persona-node ${selected ? 'node--selected' : ''}`} style={{ width: 300, minHeight: isEditing ? 400 : (formData.styleProfile ? 320 : 180) }}>
+    <div
+      className={`node persona-node ${selected ? 'node--selected' : ''}`}
+      style={{ width: '100%', height: '100%', minWidth: 280, minHeight: isEditing ? 420 : (formData.styleProfile ? 340 : 200) }}
+    >
+      <NodeResizer minWidth={280} minHeight={isEditing ? 420 : (formData.styleProfile ? 340 : 200)} isVisible={selected} />
       {/* Target/Source handles */}
       <Handle type="target" position={Position.Left} id="target" />
       <Handle type="source" position={Position.Right} id="source" />

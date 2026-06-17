@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react'
-import { Handle, Position, useReactFlow, useEdges, useNodes } from '@xyflow/react'
+import { Handle, Position, NodeResizer, useReactFlow, useEdges, useNodes } from '@xyflow/react'
 import { X, Eye, Play, Copy, Check, Trash2, Loader, AlertCircle, FileText, Edit3, RefreshCw, Send, Bot, User as UserIcon, Code2, Download } from 'lucide-react'
 import { useCanvas } from '../context/CanvasContext'
 import { callLensChat, LENS_KICKOFF, resolveConnectedNodeIds } from '../services/aiService'
@@ -206,7 +206,8 @@ export default function LensNode({ id, data, selected }) {
     : `No source connected · ${data.promptTitle || 'custom prompt'}`
 
   return (
-    <div className={`node analysis-node ${selected ? 'node--selected' : ''}`} style={{ width: 420, height: 580 }}>
+    <div className={`node analysis-node ${selected ? 'node--selected' : ''}`} style={{ width: '100%', height: '100%', minWidth: 360, minHeight: 420 }}>
+      <NodeResizer minWidth={360} minHeight={420} isVisible={selected} />
       <Handle type="target" position={Position.Left} id="target" />
       <Handle type="source" position={Position.Right} id="source" />
 

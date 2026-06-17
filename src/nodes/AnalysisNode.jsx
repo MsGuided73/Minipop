@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react'
-import { Handle, Position, useReactFlow, useEdges, useNodes } from '@xyflow/react'
+import { Handle, Position, NodeResizer, useReactFlow, useEdges, useNodes } from '@xyflow/react'
 import { X, Zap, Sparkles, Copy, Check, Trash2, Brain, Loader, AlertCircle, FileText } from 'lucide-react'
 import { useCanvas } from '../context/CanvasContext'
 import { analyzeViralPatterns, resolveConnectedNodeIds } from '../services/aiService'
@@ -68,7 +68,8 @@ export default function AnalysisNode({ id, data, selected }) {
   }, [id, updateNode])
 
   return (
-    <div className={`node analysis-node ${selected ? 'node--selected' : ''}`} style={{ width: 320, height: 420 }}>
+    <div className={`node analysis-node ${selected ? 'node--selected' : ''}`} style={{ width: '100%', height: '100%', minWidth: 280, minHeight: 320 }}>
+      <NodeResizer minWidth={280} minHeight={320} isVisible={selected} />
       <Handle type="target" position={Position.Left} id="target" />
       <Handle type="source" position={Position.Right} id="source" />
 

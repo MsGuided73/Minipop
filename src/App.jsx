@@ -335,6 +335,38 @@ function CanvasApp() {
     return () => { delete window.__contentloomSpawnTranscript }
   }, [handleSpawnTranscriptNode])
 
+  // Keyboard shortcuts: + / - / 0 to zoom in / zoom out / fit-view.
+  // Ignored while typing in inputs/textareas/contentEditable so it doesn't fight chat or notes.
+  useEffect(() => {
+    const isTypingTarget = (el) => {
+      if (!el) return false
+      const tag = el.tagName
+      return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable
+    }
+
+    const handleKey = (e) => {
+      // Let the browser handle its own zoom (Ctrl/Cmd + +/-) and don't swallow other modifiers
+      if (e.ctrlKey || e.metaKey || e.altKey) return
+      if (isTypingTarget(e.target)) return
+      if (!reactFlowInstance.current) return
+
+      // '+' on US layouts is Shift+'=', so accept both. Same for '-' / '_'.
+      if (e.key === '+' || e.key === '=') {
+        e.preventDefault()
+        reactFlowInstance.current.zoomIn({ duration: 180 })
+      } else if (e.key === '-' || e.key === '_') {
+        e.preventDefault()
+        reactFlowInstance.current.zoomOut({ duration: 180 })
+      } else if (e.key === '0') {
+        e.preventDefault()
+        reactFlowInstance.current.fitView({ duration: 260, padding: 0.2 })
+      }
+    }
+
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [])
+
   // File drop handler
   const handleDrop = useCallback(async (e) => {
     e.preventDefault()

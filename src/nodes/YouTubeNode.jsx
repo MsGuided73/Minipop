@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react'
-import { Handle, Position } from '@xyflow/react'
+import { Handle, Position, NodeResizer } from '@xyflow/react'
 import { X, Youtube, ExternalLink, Loader, FileText, AlertCircle, Edit, Check, MessageSquare, RefreshCw, Eye } from 'lucide-react'
 import { useCanvas } from '../context/CanvasContext'
 import './nodes.css'
@@ -183,7 +183,11 @@ export default function YouTubeNode({ id, data, selected }) {
   }[status]
 
   return (
-    <div className={`node youtube-node ${selected ? 'node--selected' : ''}`}>
+    <div
+      className={`node youtube-node ${selected ? 'node--selected' : ''}`}
+      style={{ width: '100%', height: '100%', minHeight: isEditing ? 460 : undefined }}
+    >
+      <NodeResizer minWidth={280} minHeight={isEditing ? 460 : 280} isVisible={selected} />
       <Handle type="source" position={Position.Right} id="source" />
       <Handle type="target" position={Position.Left} id="target" />
 
@@ -257,17 +261,53 @@ export default function YouTubeNode({ id, data, selected }) {
         </div>
       </div>
 
-      {/* Thumbnail or Edit Area */}
-      <div className="node-preview">
-        {isEditing ? (
+      {/* ── EDIT MODE: full-body textarea, hides preview / metadata / footer / status ── */}
+      {isEditing ? (
+        <div
+          style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            padding: 10,
+            gap: 6,
+            minHeight: 0,
+          }}
+        >
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            Editing transcript · click ✓ in header to save
+          </div>
           <textarea
-            className="node-edit-area"
+            autoFocus
+            className="nopan"
             value={manualText}
             onChange={(e) => setManualText(e.target.value)}
-            placeholder="Paste transcript here..."
+            placeholder="Paste transcript here…"
             onClick={e => e.stopPropagation()}
+            style={{
+              flex: 1,
+              minHeight: 0,
+              width: '100%',
+              background: 'var(--bg-card)',
+              color: 'var(--text-primary)',
+              border: '1px solid var(--border-default)',
+              borderRadius: 'var(--radius-md)',
+              padding: 10,
+              fontFamily: 'var(--font-sans)',
+              fontSize: 12,
+              lineHeight: 1.55,
+              resize: 'none',
+              outline: 'none',
+            }}
           />
-        ) : thumbnail ? (
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', textAlign: 'right' }}>
+            {manualText.length.toLocaleString()} chars · drag corners to resize node
+          </div>
+        </div>
+      ) : (
+        <>
+      {/* Thumbnail */}
+      <div className="node-preview">
+        {thumbnail ? (
           <div className="youtube-thumb-wrap">
             <img src={thumbnail} alt={data.label} className="node-preview-img" />
             <div className="youtube-thumb-gradient" />
@@ -291,7 +331,7 @@ export default function YouTubeNode({ id, data, selected }) {
       </div>
 
       {/* Compact metadata strip + sync button */}
-      {data.videoMetadata && !isEditing && (
+      {data.videoMetadata && (
         <>
           <div className="youtube-meta-strip">
             {data.videoMetadata.uploader && (
@@ -358,6 +398,8 @@ export default function YouTubeNode({ id, data, selected }) {
         <div style={{ fontSize: 10, color: 'var(--text-muted)', padding: '0 10px 6px', lineHeight: 1.4 }}>
           {errorMsg.length > 80 ? errorMsg.slice(0, 80) + '…' : errorMsg}
         </div>
+      )}
+        </>
       )}
     </div>
   )
