@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Library, Search, PanelRightClose, PanelRightOpen, Play, Copy, Edit3, Trash2, X } from 'lucide-react'
+import { Library, Search, PanelRightClose, PanelRightOpen, Play, Copy, Edit3, Trash2, X, Plus } from 'lucide-react'
 import { listPrompts, deletePrompt } from '../services/promptService'
 import PromptFillModal from './PromptFillModal'
 import './PromptPanel.css'
@@ -22,6 +22,7 @@ export default function PromptPanel({ onSpawnLensNode }) {
   const [activeTag, setActiveTag] = useState(null)
   const [selectedId, setSelectedId] = useState(null)
   const [fillingPrompt, setFillingPrompt] = useState(null)
+  const [creatingNew, setCreatingNew] = useState(false)
   const [error, setError] = useState('')
 
   // ─── Persist open/width ─────────────────────────────────────────────────
@@ -141,6 +142,13 @@ export default function PromptPanel({ onSpawnLensNode }) {
             <Library size={14} /> Prompt Library
           </div>
           <div className="prompt-panel-header-actions">
+            <button
+              className="prompt-panel-icon-btn"
+              onClick={() => setCreatingNew(true)}
+              title="New prompt"
+            >
+              <Plus size={16} />
+            </button>
             <button
               className="prompt-panel-icon-btn"
               onClick={() => setOpen(false)}
@@ -279,6 +287,16 @@ export default function PromptPanel({ onSpawnLensNode }) {
           prompt={fillingPrompt}
           isSaveAsVariation={!!fillingPrompt._saveAsVariation}
           onClose={() => setFillingPrompt(null)}
+          onSpawnLensNode={onSpawnLensNode}
+          onRefreshLibrary={refresh}
+        />
+      )}
+
+      {creatingNew && (
+        <PromptFillModal
+          prompt={{ id: null, title: '', body: '', description: '', tags: [], variables: [] }}
+          isCreateNew
+          onClose={() => setCreatingNew(false)}
           onSpawnLensNode={onSpawnLensNode}
           onRefreshLibrary={refresh}
         />

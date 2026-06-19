@@ -13,13 +13,15 @@ import {
 } from '../services/promptService'
 
 /**
- * One modal that handles two flows:
+ * One modal that handles three flows:
  *  - Default: fill variables, then spawn a Lens Node (calls onSpawnLensNode)
  *  - isSaveAsVariation: edit title/body/tags, then POST a new prompt linked via parent_id
+ *  - isCreateNew: author a brand-new prompt from scratch, then POST it
  */
 export default function PromptFillModal({
   prompt,
   isSaveAsVariation,
+  isCreateNew,
   onClose,
   onSpawnLensNode,
   onRefreshLibrary,
@@ -27,8 +29,13 @@ export default function PromptFillModal({
   const { state } = useCanvas()
   const { getNodes, getEdges } = useReactFlow()
 
-  // ─── Variation editor state ─────────────────────────────────────────────
-  const [varTitle, setVarTitle] = useState(suggestVariationTitle(prompt.title))
+  // Both the variation and create-new flows share the same prompt editor UI.
+  const showEditor = isSaveAsVariation || isCreateNew
+
+  // ─── Editor state (variation / create-new) ──────────────────────────────
+  const [varTitle, setVarTitle] = useState(
+    isSaveAsVariation ? suggestVariationTitle(prompt.title) : (prompt.title || '')
+  )
   const [varBody, setVarBody] = useState(prompt.body || '')
   const [varTags, setVarTags] = useState((prompt.tags || []).join(', '))
   const [varDescription, setVarDescription] = useState(prompt.description || '')
@@ -67,14 +74,14 @@ export default function PromptFillModal({
   // On mount: auto-fill from selected node's connection context.
   // If a source node is selected, we treat it as the "connected source" for autofill.
   useEffect(() => {
-    if (isSaveAsVariation) return
+    if (showEditor) return
     if (!selectedNode) return
     // Build a synthetic edge list so buildAutofillValues sees the selected node as connected
     const synthetic = [{ id: 'synthetic', source: 'lens-placeholder', target: selectedNode.id }]
     const syntheticNodes = [...getNodes(), { id: 'lens-placeholder', type: 'lensNode', position: { x: 0, y: 0 } }]
     const auto = buildAutofillValues('lens-placeholder', syntheticNodes, synthetic, reconciled)
     setValues(prev => ({ ...prev, ...auto }))
-  }, [selectedNode, reconciled, isSaveAsVariation, getNodes])
+  }, [selectedNode, reconciled, showEditor, getNodes])
 
   // ─── Submit handlers ─────────────────────────────────────────────────────
 
@@ -105,9 +112,13 @@ export default function PromptFillModal({
     }
   }
 
-  async function handleSaveVariation() {
+  async function handleSavePrompt() {
     if (!varTitle.trim()) {
       setError('Title is required.')
+      return
+    }
+    if (!varBody.trim()) {
+      setError('Prompt body is required.')
       return
     }
     setSubmitting(true)
@@ -123,7 +134,8 @@ export default function PromptFillModal({
         description: varDescription.trim() || null,
         tags: tagsArr,
         variables: variableDefs,
-        parentId: prompt.id,
+        // Variations are linked to their source prompt; new prompts stand alone.
+        ...(isSaveAsVariation ? { parentId: prompt.id } : {}),
       })
       onRefreshLibrary?.()
       onClose()
@@ -159,10 +171,10 @@ export default function PromptFillModal({
         <div className="settings-header">
           <div className="settings-title-row">
             <div className="settings-title-icon">
-              {isSaveAsVariation ? <Save size={16} /> : <Play size={16} />}
+              {showEditor ? <Save size={16} /> : <Play size={16} />}
             </div>
             <h2 className="settings-title">
-              {isSaveAsVariation ? 'Save as Variation' : `Use: ${prompt.title}`}
+              {isCreateNew ? 'New Prompt' : isSaveAsVariation ? 'Save as Variation' : `Use: ${prompt.title}`}
             </h2>
           </div>
           <button className="btn-icon" onClick={onClose}>
@@ -171,15 +183,15 @@ export default function PromptFillModal({
         </div>
 
         <div style={{ overflowY: 'auto', padding: '0 4px' }}>
-          {/* ───── Save-as-variation editor ───── */}
-          {isSaveAsVariation && (
+          {/* ───── Prompt editor (variation / create-new) ───── */}
+          {showEditor && (
             <div className="settings-section">
-              <label className="settings-label">Variation Title</label>
+              <label className="settings-label">{isCreateNew ? 'Title' : 'Variation Title'}</label>
               <input
                 className="input settings-input"
                 value={varTitle}
                 onChange={e => setVarTitle(e.target.value)}
-                placeholder="My customized variation"
+                placeholder={isCreateNew ? 'My new prompt' : 'My customized variation'}
               />
 
               <label className="settings-label" style={{ marginTop: 14 }}>Description (optional)</label>
@@ -224,7 +236,7 @@ export default function PromptFillModal({
           )}
 
           {/* ───── Fill-variables flow ───── */}
-          {!isSaveAsVariation && (
+          {!showEditor && (
             <>
               <div className="settings-section">
                 <p className="settings-hint" style={{ marginBottom: 12 }}>
@@ -297,9 +309,9 @@ export default function PromptFillModal({
 
         <div className="settings-row" style={{ padding: '12px 16px', borderTop: '1px solid var(--border-default)', justifyContent: 'flex-end', flexShrink: 0 }}>
           <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-          {isSaveAsVariation ? (
-            <button className="btn btn-primary" onClick={handleSaveVariation} disabled={submitting}>
-              <Save size={13} /> {submitting ? 'Saving…' : 'Save Variation'}
+          {showEditor ? (
+            <button className="btn btn-primary" onClick={handleSavePrompt} disabled={submitting}>
+              <Save size={13} /> {submitting ? 'Saving…' : isCreateNew ? 'Create Prompt' : 'Save Variation'}
             </button>
           ) : (
             <button className="btn btn-primary" onClick={handleSpawn} disabled={submitting}>

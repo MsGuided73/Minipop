@@ -267,6 +267,9 @@ function CanvasApp() {
       id,
       type: 'lensNode',
       position: pos,
+      // Spawn at a standard, consistent size so a long prompt template doesn't
+      // balloon the node. The body scrolls; drag the resize handle to grow it.
+      style: { width: 380, height: 460 },
       data: {
         label: label || `${promptTitle || 'Lens'}`,
         promptId,
