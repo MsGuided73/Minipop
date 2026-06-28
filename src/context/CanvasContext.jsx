@@ -33,8 +33,19 @@ function saveGeminiKey(raw) {
   if (!raw) { localStorage.removeItem('poppyai_gemini_key'); return }
   localStorage.setItem('poppyai_gemini_key', encodeKey(raw))
 }
+function readAnthropicKey() {
+  try {
+    const stored = localStorage.getItem('poppyai_anthropic_key')
+    if (!stored) return ''
+    return decodeKey(stored)
+  } catch { return '' }
+}
+function saveAnthropicKey(raw) {
+  if (!raw) { localStorage.removeItem('poppyai_anthropic_key'); return }
+  localStorage.setItem('poppyai_anthropic_key', encodeKey(raw))
+}
 
-const VALID_MODELS = ['gpt-4o', 'o1-preview', 'gemma-4-31b-it', 'gemma-4-26b-a4b-it']
+const VALID_MODELS = ['gpt-4o', 'o1-preview', 'gemma-4-31b-it', 'gemma-4-26b-a4b-it', 'claude-haiku-4-5-20251001']
 
 function readModel() {
   const stored = localStorage.getItem('poppyai_model')
@@ -44,6 +55,7 @@ function readModel() {
 const initialState = {
   apiKey: readApiKey(),
   geminiKey: readGeminiKey(),
+  anthropicKey: readAnthropicKey(),
   model: readModel(),
   settingsOpen: false,
   boardId: localStorage.getItem('poppyai_boardId') || uuidv4(),
@@ -70,6 +82,10 @@ function canvasReducer(state, action) {
     case 'SET_GEMINI_KEY':
       saveGeminiKey(action.key)
       return { ...state, geminiKey: action.key }
+
+    case 'SET_ANTHROPIC_KEY':
+      saveAnthropicKey(action.key)
+      return { ...state, anthropicKey: action.key }
 
     case 'SET_MODEL':
       localStorage.setItem('poppyai_model', action.model)

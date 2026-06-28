@@ -61,7 +61,8 @@ export default function LensNode({ id, data, selected }) {
         getEdges(),
         state.apiKey,
         state.model,
-        state.geminiKey
+        state.geminiKey,
+        state.anthropicKey
       )
       const nextMessages = [
         ...currentMessages,
@@ -74,7 +75,7 @@ export default function LensNode({ id, data, selected }) {
     } finally {
       setLoading(false)
     }
-  }, [id, renderedPrompt, getNodes, getEdges, state.apiKey, state.model, state.geminiKey, updateNode])
+  }, [id, renderedPrompt, getNodes, getEdges, state.apiKey, state.model, state.geminiKey, state.anthropicKey, updateNode])
 
   const handleInitialRun = useCallback(() => {
     if (!renderedPrompt) {

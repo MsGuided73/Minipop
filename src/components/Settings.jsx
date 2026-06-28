@@ -1,11 +1,13 @@
 import React, { useState } from 'react'
 import { X, Key, Cpu, Save, CheckCircle, AlertCircle, Settings as SettingsIcon } from 'lucide-react'
 import { useCanvas } from '../context/CanvasContext'
+import { getProvider } from '../services/aiService'
 import './Settings.css'
 
 const MODELS = [
   { id: 'gpt-4o', label: 'GPT-4o', desc: 'OpenAI Omni — fast and intelligent', recommended: true },
   { id: 'o1-preview', label: 'o1 Preview', desc: 'OpenAI reasoning model' },
+  { id: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5', desc: 'Anthropic — fast, capable, cost-efficient' },
   { id: 'gemma-4-31b-it', label: 'Gemma 4 31B', desc: 'Google open model — max quality (256K context)' },
   { id: 'gemma-4-26b-a4b-it', label: 'Gemma 4 26B (MoE)', desc: 'Google open model — faster, cheaper, similar quality' },
 ]
@@ -22,6 +24,7 @@ export default function Settings() {
   
   const [apiKeyInput, setApiKeyInput] = useState(state.apiKey || '')
   const [geminiKeyInput, setGeminiKeyInput] = useState(state.geminiKey || '')
+  const [anthropicKeyInput, setAnthropicKeyInput] = useState(state.anthropicKey || '')
   const [localBoardName, setLocalBoardName] = useState(state.boardName || 'Untitled Board')
   const [saved, setSaved] = useState(false)
   const [syncing, setSyncing] = useState(false)
@@ -35,6 +38,7 @@ export default function Settings() {
   const handleSave = () => {
     dispatch({ type: 'SET_API_KEY', key: apiKeyInput.trim() })
     dispatch({ type: 'SET_GEMINI_KEY', key: geminiKeyInput.trim() })
+    dispatch({ type: 'SET_ANTHROPIC_KEY', key: anthropicKeyInput.trim() })
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
   }
@@ -54,36 +58,44 @@ export default function Settings() {
   }
 
   const handleTest = async () => {
-    const isGoogle = state.model.startsWith('gemini') || state.model.startsWith('gemma')
-    const keyToTest = isGoogle ? geminiKeyInput.trim() : apiKeyInput.trim()
+    const provider = getProvider(state.model)
+    const PROVIDER_NAME = { google: 'Google AI', anthropic: 'Anthropic', openai: 'OpenAI' }[provider]
+    const keyToTest = (provider === 'google' ? geminiKeyInput
+      : provider === 'anthropic' ? anthropicKeyInput
+      : apiKeyInput).trim()
 
     if (!keyToTest) {
-      setTestResult({ ok: false, msg: `Please enter a ${isGoogle ? 'Google AI' : 'OpenAI'} API key first.` })
+      setTestResult({ ok: false, msg: `Please enter a ${PROVIDER_NAME} API key first.` })
       return
     }
 
     setTesting(true)
     setTestResult(null)
     try {
-      if (isGoogle) {
+      let res
+      if (provider === 'google') {
         // Test Google AI key using a simple model info check
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1/models/${state.model}?key=${keyToTest}`)
-        if (res.ok) {
-          setTestResult({ ok: true, msg: 'Google AI API key is valid ✓' })
-        } else {
-          const data = await res.json().catch(() => ({}))
-          setTestResult({ ok: false, msg: data.error?.message || `Error ${res.status}` })
-        }
+        res = await fetch(`https://generativelanguage.googleapis.com/v1/models/${state.model}?key=${keyToTest}`)
+      } else if (provider === 'anthropic') {
+        // Anthropic models list — validates the key without spending tokens
+        res = await fetch('https://api.anthropic.com/v1/models', {
+          headers: {
+            'x-api-key': keyToTest,
+            'anthropic-version': '2023-06-01',
+            'anthropic-dangerous-direct-browser-access': 'true',
+          },
+        })
       } else {
-        const res = await fetch('https://api.openai.com/v1/models', {
+        res = await fetch('https://api.openai.com/v1/models', {
           headers: { Authorization: `Bearer ${keyToTest}` },
         })
-        if (res.ok) {
-          setTestResult({ ok: true, msg: 'OpenAI API key is valid ✓' })
-        } else {
-          const data = await res.json().catch(() => ({}))
-          setTestResult({ ok: false, msg: data.error?.message || `Error ${res.status}` })
-        }
+      }
+
+      if (res.ok) {
+        setTestResult({ ok: true, msg: `${PROVIDER_NAME} API key is valid ✓` })
+      } else {
+        const data = await res.json().catch(() => ({}))
+        setTestResult({ ok: false, msg: data.error?.message || `Error ${res.status}` })
       }
     } catch {
       setTestResult({ ok: false, msg: 'Connection failed. Check your network.' })
@@ -150,13 +162,27 @@ export default function Settings() {
                 name="google-ai-api-key"
               />
             </div>
-            {/* Hidden submit so Enter in either field triggers handleSave */}
+            <div>
+              <label className="settings-label">
+                <Key size={13} /> Anthropic API Key
+              </label>
+              <input
+                type="password"
+                className="input settings-input"
+                placeholder="sk-ant-..."
+                value={anthropicKeyInput}
+                onChange={e => setAnthropicKeyInput(e.target.value)}
+                autoComplete="off"
+                name="anthropic-api-key"
+              />
+            </div>
+            {/* Hidden submit so Enter in any field triggers handleSave */}
             <button type="submit" style={{ display: 'none' }} aria-hidden="true" tabIndex={-1} />
           </form>
           
           <div className="settings-disclaimer" style={{ marginTop: 15, padding: '10px', backgroundColor: 'rgba(255,165,0,0.1)', border: '1px solid rgba(255,165,0,0.3)', borderRadius: '6px', fontSize: '12px', display: 'flex', alignItems: 'flex-start', gap: '8px', color: '#ffb84d' }}>
             <AlertCircle size={14} style={{ flexShrink: 0, marginTop: '2px' }} />
-            <span><strong>Privacy Notice:</strong> Your API keys are stored locally in your browser and are never sent to our servers. They are only sent directly to OpenAI and Google APIs when generating content.</span>
+            <span><strong>Privacy Notice:</strong> Your API keys are stored locally in your browser and are never sent to our servers. They are only sent directly to OpenAI, Google, and Anthropic APIs when generating content.</span>
           </div>
 
           <div className="settings-row" style={{ marginTop: 15 }}>

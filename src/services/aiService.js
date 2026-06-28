@@ -128,15 +128,71 @@ export function buildAIContext(aiNodeId, nodes, edges) {
 }
 
 /**
+ * Provider detection from a model id. Keeps routing in one place so every
+ * call site agrees on which API and key a given model uses.
+ *   google    → gemini* / gemma* / nano*
+ *   anthropic → claude*
+ *   openai    → everything else (gpt*, o1*, …)
+ */
+export function getProvider(model = '') {
+  if (model.startsWith('gemini') || model.startsWith('gemma') || model.startsWith('nano')) return 'google'
+  if (model.startsWith('claude')) return 'anthropic'
+  return 'openai'
+}
+
+const PROVIDER_LABELS = { google: 'Google AI', anthropic: 'Anthropic', openai: 'OpenAI' }
+
+// Resolve the API key for a model from the three possible keys.
+function keyForModel(model, { apiKey, geminiKey, anthropicKey }) {
+  const provider = getProvider(model)
+  if (provider === 'google') return geminiKey
+  if (provider === 'anthropic') return anthropicKey
+  return apiKey
+}
+
+/**
+ * Anthropic Messages API caller. `system` is the system prompt; `messages` is the
+ * user/assistant turn list (no system role). Returns the concatenated text blocks.
+ * Uses the direct-browser-access header since keys live client-side like the others.
+ */
+async function callAnthropic({ apiKey, model, system, messages, temperature, maxTokens }) {
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({
+      model,
+      max_tokens: maxTokens,
+      ...(system ? { system } : {}),
+      messages,
+      ...(temperature != null ? { temperature } : {}),
+    }),
+  })
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}))
+    throw new Error(err.error?.message || `Anthropic API error: ${response.status}`)
+  }
+
+  const data = await response.json()
+  return (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || ''
+}
+
+/**
  * Handles generating chat responses based on node connections.
  */
-export async function callAI(aiNodeId, userMessage, nodes, edges, apiKey, model, geminiKey) {
+export async function callAI(aiNodeId, userMessage, nodes, edges, apiKey, model, geminiKey, anthropicKey) {
   const isGoogle = model.startsWith('gemini') || model.startsWith('gemma')
   const isGemma = model.startsWith('gemma')
-  const currentKey = isGoogle ? geminiKey : apiKey
+  const isAnthropic = model.startsWith('claude')
+  const currentKey = keyForModel(model, { apiKey, geminiKey, anthropicKey })
 
   if (!currentKey) {
-    throw new Error(`No ${isGoogle ? 'Google AI' : 'OpenAI'} API key set. Open ⚙️ Settings and paste your key.`)
+    throw new Error(`No ${PROVIDER_LABELS[getProvider(model)]} API key set. Open ⚙️ Settings and paste your key.`)
   }
 
   const { sourceContext, personaContext } = buildAIContext(aiNodeId, nodes, edges)
@@ -199,6 +255,15 @@ PROACTIVE GUIDANCE & ENHANCED SUGGESTIONS:
       { role: 'user', content: userMessage },
     ]
 
+    if (isAnthropic) {
+      return callAnthropic({
+        apiKey: currentKey, model,
+        system: messages[0].content,
+        messages: messages.slice(1),
+        temperature: 0.7, maxTokens: 2000,
+      })
+    }
+
     const isReasoningModel = model.startsWith('o1') || model.startsWith('o3') || model.startsWith('o4')
     const requestBody = {
       model,
@@ -229,13 +294,14 @@ PROACTIVE GUIDANCE & ENHANCED SUGGESTIONS:
 /**
  * Highly structured viral pattern analysis based on connected source nodes.
  */
-export async function analyzeViralPatterns(aiNodeId, nodes, edges, apiKey, model, geminiKey) {
+export async function analyzeViralPatterns(aiNodeId, nodes, edges, apiKey, model, geminiKey, anthropicKey) {
   const isGoogle = model.startsWith('gemini') || model.startsWith('gemma')
   const isGemma = model.startsWith('gemma')
-  const currentKey = isGoogle ? geminiKey : apiKey
+  const isAnthropic = model.startsWith('claude')
+  const currentKey = keyForModel(model, { apiKey, geminiKey, anthropicKey })
 
   if (!currentKey) {
-    throw new Error(`No ${isGoogle ? 'Google AI' : 'OpenAI'} API key set. Open ⚙️ Settings and paste your key.`)
+    throw new Error(`No ${PROVIDER_LABELS[getProvider(model)]} API key set. Open ⚙️ Settings and paste your key.`)
   }
 
   const { sourceContext, personaContext } = buildAIContext(aiNodeId, nodes, edges)
@@ -295,6 +361,15 @@ If a YouTube video or URL source is missing a transcript or text (e.g. marked as
       { role: 'user', content: 'Perform a comprehensive viral pattern analysis across these sources.' },
     ]
 
+    if (isAnthropic) {
+      return callAnthropic({
+        apiKey: currentKey, model,
+        system: messages[0].content,
+        messages: messages.slice(1),
+        temperature: 0.4, maxTokens: 2500,
+      })
+    }
+
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -323,13 +398,14 @@ If a YouTube video or URL source is missing a transcript or text (e.g. marked as
 /**
  * Generates a structured cross-reference matrix (agreements, contradictions, assumptions, gaps) based on connected source nodes.
  */
-export async function generateCrossReference(aiNodeId, nodes, edges, apiKey, model, geminiKey) {
+export async function generateCrossReference(aiNodeId, nodes, edges, apiKey, model, geminiKey, anthropicKey) {
   const isGoogle = model.startsWith('gemini') || model.startsWith('gemma')
   const isGemma = model.startsWith('gemma')
-  const currentKey = isGoogle ? geminiKey : apiKey
+  const isAnthropic = model.startsWith('claude')
+  const currentKey = keyForModel(model, { apiKey, geminiKey, anthropicKey })
 
   if (!currentKey) {
-    throw new Error(`No ${isGoogle ? 'Google AI' : 'OpenAI'} API key set. Open ⚙️ Settings and paste your key.`)
+    throw new Error(`No ${PROVIDER_LABELS[getProvider(model)]} API key set. Open ⚙️ Settings and paste your key.`)
   }
 
   const { sourceContext, personaContext } = buildAIContext(aiNodeId, nodes, edges)
@@ -385,6 +461,15 @@ Do NOT format as a table - provide a comprehensive, long-form narrative analysis
       { role: 'user', content: 'Generate the structured investigative Cross-Reference Report.' },
     ]
 
+    if (isAnthropic) {
+      return callAnthropic({
+        apiKey: currentKey, model,
+        system: messages[0].content,
+        messages: messages.slice(1),
+        temperature: 0.2, maxTokens: 3000,
+      })
+    }
+
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -412,12 +497,13 @@ Do NOT format as a table - provide a comprehensive, long-form narrative analysis
 /**
  * Converts a generated textual Cross-Reference Report into a strict Markdown table.
  */
-export async function generateCrossReferenceTable(reportText, apiKey, model, geminiKey) {
+export async function generateCrossReferenceTable(reportText, apiKey, model, geminiKey, anthropicKey) {
   const isGoogle = model.startsWith('gemini') || model.startsWith('gemma')
-  const currentKey = isGoogle ? geminiKey : apiKey
+  const isAnthropic = model.startsWith('claude')
+  const currentKey = keyForModel(model, { apiKey, geminiKey, anthropicKey })
 
   if (!currentKey) {
-    throw new Error(`No ${isGoogle ? 'Google AI' : 'OpenAI'} API key set. Open ⚙️ Settings and paste your key.`)
+    throw new Error(`No ${PROVIDER_LABELS[getProvider(model)]} API key set. Open ⚙️ Settings and paste your key.`)
   }
 
   const systemPrompt = `You are an expert Data Structurer. Your task is to extract the findings from the provided investigative report and convert them STRICTLY into a Markdown table.
@@ -455,6 +541,15 @@ You MUST output ONLY a markdown table with exactly these columns:
       { role: 'user', content: `Here is the report to convert:\n\n${reportText}\n\nGenerate the Markdown table.` },
     ]
 
+    if (isAnthropic) {
+      return callAnthropic({
+        apiKey: currentKey, model,
+        system: messages[0].content,
+        messages: messages.slice(1),
+        temperature: 0.1, maxTokens: 2000,
+      })
+    }
+
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -487,13 +582,14 @@ You MUST output ONLY a markdown table with exactly these columns:
  */
 export const LENS_KICKOFF = 'Begin the analysis now. Output the complete report in the format specified.'
 
-export async function callLensChat(lensNodeId, userMessage, renderedPrompt, history, nodes, edges, apiKey, model, geminiKey) {
+export async function callLensChat(lensNodeId, userMessage, renderedPrompt, history, nodes, edges, apiKey, model, geminiKey, anthropicKey) {
   const isGoogle = model.startsWith('gemini') || model.startsWith('gemma')
   const isGemma = model.startsWith('gemma')
-  const currentKey = isGoogle ? geminiKey : apiKey
+  const isAnthropic = model.startsWith('claude')
+  const currentKey = keyForModel(model, { apiKey, geminiKey, anthropicKey })
 
   if (!currentKey) {
-    throw new Error(`No ${isGoogle ? 'Google AI' : 'OpenAI'} API key set. Open ⚙️ Settings and paste your key.`)
+    throw new Error(`No ${PROVIDER_LABELS[getProvider(model)]} API key set. Open ⚙️ Settings and paste your key.`)
   }
 
   const { sourceContext, personaContext } = buildAIContext(lensNodeId, nodes, edges)
@@ -543,6 +639,15 @@ export async function callLensChat(lensNodeId, userMessage, renderedPrompt, hist
     { role: 'user', content: userMessage },
   ]
 
+  if (isAnthropic) {
+    return callAnthropic({
+      apiKey: currentKey, model,
+      system: messages[0].content,
+      messages: messages.slice(1),
+      temperature: 0.4, maxTokens: 4000,
+    })
+  }
+
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${currentKey}` },
@@ -565,6 +670,9 @@ export async function callLensChat(lensNodeId, userMessage, renderedPrompt, hist
  * Handles image generation calls via OpenAI/Google models.
  */
 export async function generateImage(prompt, apiKey, model, geminiKey) {
+  if (model.startsWith('claude')) {
+    throw new Error('Image generation is not supported by Claude models. Switch to an OpenAI or Google model in ⚙️ Settings to generate images.')
+  }
   const isGoogle = model.startsWith('gemini') || model.startsWith('gemma') || model.startsWith('nano')
   const currentKey = isGoogle ? geminiKey : apiKey
 

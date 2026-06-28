@@ -151,7 +151,7 @@ export default function PromptFillModal({
     setSuggesting(true)
     setError('')
     try {
-      const suggested = await suggestVariables(varBody, state.apiKey, state.model, state.geminiKey)
+      const suggested = await suggestVariables(varBody, state.apiKey, state.model, state.geminiKey, state.anthropicKey)
       setVariableDefs(suggested)
     } catch (err) {
       setError(err.message)

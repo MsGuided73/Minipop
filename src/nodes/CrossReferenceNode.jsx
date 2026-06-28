@@ -47,7 +47,7 @@ export default function CrossReferenceNode({ id, data, selected }) {
     try {
       const nodes = getNodes()
       const edges = getEdges()
-      const response = await generateCrossReference(id, nodes, edges, state.apiKey, state.model, state.geminiKey)
+      const response = await generateCrossReference(id, nodes, edges, state.apiKey, state.model, state.geminiKey, state.anthropicKey)
       
       updateNode(id, { data: { ...data, report: response, tableData: '' } })
     } catch (err) {
@@ -55,7 +55,7 @@ export default function CrossReferenceNode({ id, data, selected }) {
     } finally {
       setLoading(false)
     }
-  }, [connectedSources, id, data, state.apiKey, state.model, state.geminiKey, getNodes, getEdges, updateNode])
+  }, [connectedSources, id, data, state.apiKey, state.model, state.geminiKey, state.anthropicKey, getNodes, getEdges, updateNode])
 
   const handleGenerateTable = useCallback(async () => {
     if (!report) return
@@ -63,14 +63,14 @@ export default function CrossReferenceNode({ id, data, selected }) {
     setError('')
     
     try {
-      const response = await generateCrossReferenceTable(report, state.apiKey, state.model, state.geminiKey)
+      const response = await generateCrossReferenceTable(report, state.apiKey, state.model, state.geminiKey, state.anthropicKey)
       updateNode(id, { data: { ...data, tableData: response } })
     } catch (err) {
       setError(err.message)
     } finally {
       setTableLoading(false)
     }
-  }, [report, id, data, state.apiKey, state.model, state.geminiKey, updateNode])
+  }, [report, id, data, state.apiKey, state.model, state.geminiKey, state.anthropicKey, updateNode])
 
   const handleCopy = useCallback(() => {
     if (!report) return

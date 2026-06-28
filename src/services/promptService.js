@@ -135,10 +135,11 @@ export async function deletePrompt(id) {
 // {{variables}} that would make the prompt reusable across different sources.
 // Returns an array of variable definitions matching our schema.
 
-export async function suggestVariables(body, apiKey, model, geminiKey) {
+export async function suggestVariables(body, apiKey, model, geminiKey, anthropicKey) {
   const isGoogle = model.startsWith('gemini') || model.startsWith('gemma')
-  const currentKey = isGoogle ? geminiKey : apiKey
-  if (!currentKey) throw new Error(`No ${isGoogle ? 'Google AI' : 'OpenAI'} API key set.`)
+  const isAnthropic = model.startsWith('claude')
+  const currentKey = isGoogle ? geminiKey : isAnthropic ? anthropicKey : apiKey
+  if (!currentKey) throw new Error(`No ${isGoogle ? 'Google AI' : isAnthropic ? 'Anthropic' : 'OpenAI'} API key set.`)
 
   const system = `You are a prompt engineering assistant. Given a long-form analysis prompt, identify the parts that should be templatized as {{variables}} so the prompt can be reused across different videos, audiences, and user goals.
 
@@ -154,6 +155,32 @@ Return ONLY a JSON array (no prose, no markdown fences). Each element must be an
 Aim for 3–6 variables. Prefer: source type, user goals, target audience, depth/tone modifiers. Do NOT invent variables that don't make the prompt more flexible.`
 
   const user = `Analyze this prompt and propose variables:\n\n---\n${body}\n---`
+
+  if (isAnthropic) {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': currentKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: 1200,
+        system,
+        messages: [{ role: 'user', content: user }],
+        temperature: 0.2,
+      }),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.error?.message || `Anthropic error ${res.status}`)
+    }
+    const data = await res.json()
+    const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || ''
+    return parseSuggestion(text)
+  }
 
   if (isGoogle) {
     const isGemma = model.startsWith('gemma')
