@@ -1,6 +1,7 @@
-import React, { useState } from 'react'
-import { Bot, Type, Globe, Image, Youtube, FileText, Trash2, Settings, Download, Upload, Plus, ChevronDown, Zap, UserSquare, Sun, Moon, Wand2, Mic, GitCompare, Layers, Eye } from 'lucide-react'
+import React, { useState, useRef, useEffect } from 'react'
+import { Bot, Type, Globe, Image, Youtube, FileText, Trash2, Settings, Download, Upload, Plus, ChevronDown, Zap, UserSquare, Sun, Moon, Wand2, Mic, GitCompare, Layers, Eye, Cpu, Check } from 'lucide-react'
 import { useCanvas } from '../context/CanvasContext'
+import { MODELS, modelLabel } from '../constants/models'
 import './Toolbar.css'
 
 const nodeTypes = [
@@ -22,6 +23,20 @@ const nodeTypes = [
 export default function Toolbar({ onAddNode, theme, onToggleTheme }) {
   const { state, dispatch } = useCanvas()
   const [addMenuOpen, setAddMenuOpen] = useState(false)
+  const [modelMenuOpen, setModelMenuOpen] = useState(false)
+  const modelMenuRef = useRef(null)
+
+  // Close the model menu on outside click.
+  useEffect(() => {
+    if (!modelMenuOpen) return
+    function onClick(e) {
+      if (modelMenuRef.current && !modelMenuRef.current.contains(e.target)) {
+        setModelMenuOpen(false)
+      }
+    }
+    window.addEventListener('mousedown', onClick)
+    return () => window.removeEventListener('mousedown', onClick)
+  }, [modelMenuOpen])
 
   const handleExport = () => {
     const data = JSON.stringify({ nodes: state.nodes, edges: state.edges }, null, 2)
@@ -116,6 +131,42 @@ export default function Toolbar({ onAddNode, theme, onToggleTheme }) {
         <span className="toolbar-stat">
           <span className="toolbar-stat-num">{(state.edges || []).length}</span> connections
         </span>
+      </div>
+
+      <div className="toolbar-divider" />
+
+      {/* Model quick-switch — applies to the next run of any node */}
+      <div className="toolbar-model-wrap" ref={modelMenuRef}>
+        <button
+          className="toolbar-model-btn"
+          onClick={() => setModelMenuOpen(o => !o)}
+          title="Switch AI model (applies to the next run of any prompt)"
+        >
+          <Cpu size={13} />
+          <span className="toolbar-model-label">{modelLabel(state.model)}</span>
+          <ChevronDown size={12} className={modelMenuOpen ? 'rotated' : ''} />
+        </button>
+
+        {modelMenuOpen && (
+          <div className="toolbar-model-menu animate-scale-in">
+            {MODELS.map(m => (
+              <button
+                key={m.id}
+                className={`toolbar-model-item ${state.model === m.id ? 'active' : ''}`}
+                onClick={() => {
+                  dispatch({ type: 'SET_MODEL', model: m.id })
+                  setModelMenuOpen(false)
+                }}
+              >
+                <div className="toolbar-model-item-info">
+                  <span className="toolbar-model-item-label">{m.label}</span>
+                  <span className="toolbar-model-item-desc">{m.desc}</span>
+                </div>
+                {state.model === m.id && <Check size={14} className="toolbar-model-item-check" />}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="toolbar-divider" />

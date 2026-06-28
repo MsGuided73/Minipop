@@ -2,15 +2,8 @@ import React, { useState } from 'react'
 import { X, Key, Cpu, Save, CheckCircle, AlertCircle, Settings as SettingsIcon } from 'lucide-react'
 import { useCanvas } from '../context/CanvasContext'
 import { getProvider } from '../services/aiService'
+import { MODELS } from '../constants/models'
 import './Settings.css'
-
-const MODELS = [
-  { id: 'gpt-4o', label: 'GPT-4o', desc: 'OpenAI Omni — fast and intelligent', recommended: true },
-  { id: 'o1-preview', label: 'o1 Preview', desc: 'OpenAI reasoning model' },
-  { id: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5', desc: 'Anthropic — fast, capable, cost-efficient' },
-  { id: 'gemma-4-31b-it', label: 'Gemma 4 31B', desc: 'Google open model — max quality (256K context)' },
-  { id: 'gemma-4-26b-a4b-it', label: 'Gemma 4 26B (MoE)', desc: 'Google open model — faster, cheaper, similar quality' },
-]
 
 export default function Settings() {
   const { 

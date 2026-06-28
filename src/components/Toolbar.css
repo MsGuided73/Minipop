@@ -154,3 +154,103 @@
   align-items: center;
   gap: 4px;
 }
+
+/* ── Model quick-switch ───────────────────────────────────────────── */
+.toolbar-model-wrap {
+  position: relative;
+}
+
+.toolbar-model-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: var(--font-sans);
+  transition: all var(--transition-fast);
+  max-width: 200px;
+}
+
+.toolbar-model-btn:hover {
+  border-color: var(--accent-primary);
+  color: var(--text-primary);
+}
+
+.toolbar-model-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.toolbar-model-btn .rotated {
+  transform: rotate(180deg);
+  transition: transform var(--transition-base);
+}
+
+.toolbar-model-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: 6px;
+  min-width: 260px;
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  z-index: 200;
+}
+
+.toolbar-model-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-align: left;
+  width: 100%;
+}
+
+.toolbar-model-item:hover {
+  background: var(--bg-hover);
+}
+
+.toolbar-model-item.active {
+  background: var(--accent-subtle);
+}
+
+.toolbar-model-item-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.toolbar-model-item-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.toolbar-model-item-desc {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 1px;
+}
+
+.toolbar-model-item-check {
+  color: var(--accent-primary);
+  flex-shrink: 0;
+}
