@@ -45,7 +45,7 @@ export default function AnalysisNode({ id, data, selected }) {
     try {
       const nodes = getNodes()
       const edges = getEdges()
-      const response = await analyzeViralPatterns(id, nodes, edges, state.apiKey, state.model, state.geminiKey, state.anthropicKey)
+      const response = await analyzeViralPatterns(id, nodes, edges, state.apiKey, state.model, state.geminiKey, state.anthropicKey, { autoContinue: state.autoContinue })
       
       updateNode(id, { data: { report: response } })
     } catch (err) {
@@ -53,7 +53,7 @@ export default function AnalysisNode({ id, data, selected }) {
     } finally {
       setLoading(false)
     }
-  }, [connectedSources, id, state.apiKey, state.model, state.geminiKey, state.anthropicKey, getNodes, getEdges, updateNode])
+  }, [connectedSources, id, state.apiKey, state.model, state.geminiKey, state.anthropicKey, state.autoContinue, getNodes, getEdges, updateNode])
 
   const handleCopy = useCallback(() => {
     if (!report) return

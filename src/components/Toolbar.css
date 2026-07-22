@@ -254,3 +254,67 @@
   color: var(--accent-primary);
   flex-shrink: 0;
 }
+
+/* ── Auto-continue switch ─────────────────────────────────────────── */
+.toolbar-toggle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 8px 6px 10px;
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: var(--font-sans);
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.toolbar-toggle:hover {
+  border-color: var(--accent-primary);
+  color: var(--text-primary);
+}
+
+.toolbar-toggle.on {
+  border-color: var(--accent-primary);
+  background: var(--accent-subtle);
+  color: var(--text-primary);
+}
+
+.toolbar-toggle-track {
+  position: relative;
+  width: 28px;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--border-default);
+  transition: background var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.toolbar-toggle.on .toolbar-toggle-track {
+  background: var(--accent-primary);
+}
+
+.toolbar-toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  transition: transform var(--transition-fast);
+}
+
+.toolbar-toggle.on .toolbar-toggle-thumb {
+  transform: translateX(12px);
+}
+
+.toolbar-toggle:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}

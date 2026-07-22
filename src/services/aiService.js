@@ -150,45 +150,151 @@ function keyForModel(model, { apiKey, geminiKey, anthropicKey }) {
   return apiKey
 }
 
+// ─── Auto-continue ───────────────────────────────────────────────────────────
+// When a provider stops because it hit the output-token ceiling rather than
+// because the answer was finished, we can transparently ask it to keep going and
+// stitch the pieces together. Capped so a runaway model can't bill forever.
+const MAX_AUTO_CONTINUE_ROUNDS = 5
+
+const CONTINUE_INSTRUCTION =
+  'Your previous message was cut off before it finished. Continue from exactly where you stopped, ' +
+  'mid-sentence if necessary. Do not repeat any text you already wrote, do not summarize what came ' +
+  'before, and do not add a preamble — output only the remaining content. When the response is ' +
+  'genuinely complete, simply stop.'
+
 /**
- * Anthropic Messages API caller. `system` is the system prompt; `messages` is the
- * user/assistant turn list (no system role). Returns the concatenated text blocks.
- * Uses the direct-browser-access header since keys live client-side like the others.
+ * Single low-level call to whichever provider owns `model`.
+ *
+ * `system` is the system instruction; `messages` is the user/assistant turn list
+ * (no system role — each provider gets it in its native slot).
+ *
+ * Returns `{ text, truncated }` where `truncated` is true when the model stopped
+ * because it ran out of output tokens, which is what auto-continue keys off.
  */
-async function callAnthropic({ apiKey, model, system, messages, temperature, maxTokens }) {
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
+async function callProvider({ apiKey, model, system, messages, temperature, maxTokens, useSearch = false }) {
+  const provider = getProvider(model)
+
+  if (provider === 'google') {
+    const isGemma = model.startsWith('gemma')
+    const contents = [
+      ...(system ? [{ role: 'user', parts: [{ text: `SYSTEM INSTRUCTION: ${system}` }] }] : []),
+      ...messages.map(m => ({
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: m.content }],
+      })),
+    ]
+
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents,
+        ...(temperature != null ? { generationConfig: { temperature } } : {}),
+        // Gemma has no tool support; the search grounding is Gemini-only.
+        ...(useSearch && !isGemma ? { tools: [{ googleSearch: {} }] } : {}),
+      }),
+    })
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      throw new Error(err.error?.message || `Google AI API error: ${response.status}`)
+    }
+
+    const data = await response.json()
+    const candidate = data.candidates?.[0]
+    const text = (candidate?.content?.parts || []).map(p => p.text || '').join('') || ''
+    return { text, truncated: candidate?.finishReason === 'MAX_TOKENS' }
+  }
+
+  if (provider === 'anthropic') {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: maxTokens,
+        ...(system ? { system } : {}),
+        messages,
+        ...(temperature != null ? { temperature } : {}),
+      }),
+    })
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      throw new Error(err.error?.message || `Anthropic API error: ${response.status}`)
+    }
+
+    const data = await response.json()
+    const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || ''
+    return { text, truncated: data.stop_reason === 'max_tokens' }
+  }
+
+  // OpenAI. Reasoning models (o1/o3/o4) reject an explicit temperature.
+  const isReasoningModel = model.startsWith('o1') || model.startsWith('o3') || model.startsWith('o4')
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true',
+      'Authorization': `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
       model,
-      max_tokens: maxTokens,
-      ...(system ? { system } : {}),
-      messages,
-      ...(temperature != null ? { temperature } : {}),
+      messages: [
+        ...(system ? [{ role: 'system', content: system }] : []),
+        ...messages,
+      ],
+      max_completion_tokens: maxTokens,
+      ...(temperature != null && !isReasoningModel ? { temperature } : {}),
     }),
   })
 
   if (!response.ok) {
     const err = await response.json().catch(() => ({}))
-    throw new Error(err.error?.message || `Anthropic API error: ${response.status}`)
+    throw new Error(err.error?.message || `OpenAI API error: ${response.status}`)
   }
 
   const data = await response.json()
-  return (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || ''
+  const choice = data.choices?.[0]
+  return { text: choice?.message?.content || '', truncated: choice?.finish_reason === 'length' }
+}
+
+/**
+ * Runs a completion, optionally re-prompting the model to "continue" whenever it
+ * stops on the output-token ceiling instead of finishing its answer. Each partial
+ * is fed back as an assistant turn so the model knows exactly where to resume.
+ *
+ * With `autoContinue` off this is a single call — identical to the old behaviour.
+ */
+async function runCompletion({ autoContinue = false, ...opts }) {
+  let turns = opts.messages
+  let full = ''
+
+  for (let round = 0; ; round++) {
+    const { text, truncated } = await callProvider({ ...opts, messages: turns })
+    full += text
+
+    const canContinue = autoContinue && truncated && text && round < MAX_AUTO_CONTINUE_ROUNDS
+    if (!canContinue) break
+
+    turns = [
+      ...turns,
+      { role: 'assistant', content: text },
+      { role: 'user', content: CONTINUE_INSTRUCTION },
+    ]
+  }
+
+  return full
 }
 
 /**
  * Handles generating chat responses based on node connections.
  */
-export async function callAI(aiNodeId, userMessage, nodes, edges, apiKey, model, geminiKey, anthropicKey) {
-  const isGoogle = model.startsWith('gemini') || model.startsWith('gemma')
-  const isGemma = model.startsWith('gemma')
-  const isAnthropic = model.startsWith('claude')
+export async function callAI(aiNodeId, userMessage, nodes, edges, apiKey, model, geminiKey, anthropicKey, options = {}) {
   const currentKey = keyForModel(model, { apiKey, geminiKey, anthropicKey })
 
   if (!currentKey) {
@@ -222,82 +328,25 @@ PROACTIVE GUIDANCE & ENHANCED SUGGESTIONS:
   const aiNode = nodes.find(n => n.id === aiNodeId)
   const history = aiNode?.data?.messages || []
 
-  if (isGoogle) {
-    const contents = [
-      { role: 'user', parts: [{ text: `SYSTEM INSTRUCTION: ${systemPrompt}` }] },
-      ...history.slice(-12).map(m => ({
-        role: m.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: m.content }]
-      })),
-      { role: 'user', parts: [{ text: userMessage }] }
-    ]
-
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${currentKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents,
-        ...(isGemma ? {} : { tools: [{ googleSearch: {} }] }),
-      }),
-    })
-
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}))
-      throw new Error(err.error?.message || `Google AI API error: ${response.status}`)
-    }
-
-    const data = await response.json()
-    return data.candidates[0]?.content?.parts[0]?.text || ''
-  } else {
-    const messages = [
-      { role: 'system', content: systemPrompt },
+  return runCompletion({
+    apiKey: currentKey,
+    model,
+    system: systemPrompt,
+    messages: [
       ...history.slice(-12).map(m => ({ role: m.role, content: m.content })),
       { role: 'user', content: userMessage },
-    ]
-
-    if (isAnthropic) {
-      return callAnthropic({
-        apiKey: currentKey, model,
-        system: messages[0].content,
-        messages: messages.slice(1),
-        temperature: 0.7, maxTokens: 2000,
-      })
-    }
-
-    const isReasoningModel = model.startsWith('o1') || model.startsWith('o3') || model.startsWith('o4')
-    const requestBody = {
-      model,
-      messages,
-      max_completion_tokens: 2000,
-      ...(isReasoningModel ? {} : { temperature: 0.7 }),
-    }
-
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${currentKey}`,
-      },
-      body: JSON.stringify(requestBody),
-    })
-
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}))
-      throw new Error(err.error?.message || `OpenAI API error: ${response.status}`)
-    }
-
-    const data = await response.json()
-    return data.choices[0]?.message?.content || ''
-  }
+    ],
+    temperature: 0.7,
+    maxTokens: 2000,
+    useSearch: true,
+    autoContinue: options.autoContinue,
+  })
 }
 
 /**
  * Highly structured viral pattern analysis based on connected source nodes.
  */
-export async function analyzeViralPatterns(aiNodeId, nodes, edges, apiKey, model, geminiKey, anthropicKey) {
-  const isGoogle = model.startsWith('gemini') || model.startsWith('gemma')
-  const isGemma = model.startsWith('gemma')
-  const isAnthropic = model.startsWith('claude')
+export async function analyzeViralPatterns(aiNodeId, nodes, edges, apiKey, model, geminiKey, anthropicKey, options = {}) {
   const currentKey = keyForModel(model, { apiKey, geminiKey, anthropicKey })
 
   if (!currentKey) {
@@ -332,76 +381,23 @@ If a YouTube video or URL source is missing a transcript or text (e.g. marked as
 - Avoid definitive certainty; use hypothesis-driven language.
 - Mention the source label for each insight.`
 
-  if (isGoogle) {
-    const contents = [
-      { role: 'user', parts: [{ text: systemPrompt }] },
-      { role: 'user', parts: [{ text: 'Perform a comprehensive viral pattern analysis across these sources.' }] }
-    ]
-
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${currentKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents,
-        generationConfig: { temperature: 0.4 },
-        ...(isGemma ? {} : { tools: [{ googleSearch: {} }] }),
-      }),
-    })
-
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}))
-      throw new Error(err.error?.message || `Google AI API error: ${response.status}`)
-    }
-
-    const data = await response.json()
-    return data.candidates[0]?.content?.parts[0]?.text || ''
-  } else {
-    const messages = [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: 'Perform a comprehensive viral pattern analysis across these sources.' },
-    ]
-
-    if (isAnthropic) {
-      return callAnthropic({
-        apiKey: currentKey, model,
-        system: messages[0].content,
-        messages: messages.slice(1),
-        temperature: 0.4, maxTokens: 2500,
-      })
-    }
-
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${currentKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages,
-        temperature: 0.4,
-        max_completion_tokens: 2500,
-      }),
-    })
-
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}))
-      throw new Error(err.error?.message || `OpenAI API error: ${response.status}`)
-    }
-
-    const data = await response.json()
-    return data.choices[0]?.message?.content || ''
-  }
+  return runCompletion({
+    apiKey: currentKey,
+    model,
+    system: systemPrompt,
+    messages: [{ role: 'user', content: 'Perform a comprehensive viral pattern analysis across these sources.' }],
+    temperature: 0.4,
+    maxTokens: 2500,
+    useSearch: true,
+    autoContinue: options.autoContinue,
+  })
 }
 
 
 /**
  * Generates a structured cross-reference matrix (agreements, contradictions, assumptions, gaps) based on connected source nodes.
  */
-export async function generateCrossReference(aiNodeId, nodes, edges, apiKey, model, geminiKey, anthropicKey) {
-  const isGoogle = model.startsWith('gemini') || model.startsWith('gemma')
-  const isGemma = model.startsWith('gemma')
-  const isAnthropic = model.startsWith('claude')
+export async function generateCrossReference(aiNodeId, nodes, edges, apiKey, model, geminiKey, anthropicKey, options = {}) {
   const currentKey = keyForModel(model, { apiKey, geminiKey, anthropicKey })
 
   if (!currentKey) {
@@ -432,74 +428,22 @@ FORMAT REQUIREMENT:
 You MUST output your final analysis as a detailed Markdown Report, divided into clear headings corresponding to the criteria above. Use bullet points, bold text, and blockquotes to make the investigative report easy to digest and highly structured.
 Do NOT format as a table - provide a comprehensive, long-form narrative analysis.`
 
-  if (isGoogle) {
-    const contents = [
-      { role: 'user', parts: [{ text: systemPrompt }] },
-      { role: 'user', parts: [{ text: 'Generate the structured investigative Cross-Reference Report.' }] }
-    ]
-
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${currentKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents,
-        generationConfig: { temperature: 0.2 },
-        ...(isGemma ? {} : { tools: [{ googleSearch: {} }] }),
-      }),
-    })
-
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}))
-      throw new Error(err.error?.message || `Google AI API error: ${response.status}`)
-    }
-
-    const data = await response.json()
-    return data.candidates[0]?.content?.parts[0]?.text || ''
-  } else {
-    const messages = [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: 'Generate the structured investigative Cross-Reference Report.' },
-    ]
-
-    if (isAnthropic) {
-      return callAnthropic({
-        apiKey: currentKey, model,
-        system: messages[0].content,
-        messages: messages.slice(1),
-        temperature: 0.2, maxTokens: 3000,
-      })
-    }
-
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${currentKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages,
-        temperature: 0.2, // Lower temperature for more analytical/factual extraction
-        max_completion_tokens: 3000,
-      }),
-    })
-
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}))
-      throw new Error(err.error?.message || `OpenAI API error: ${response.status}`)
-    }
-
-    const data = await response.json()
-    return data.choices[0]?.message?.content || ''
-  }
+  return runCompletion({
+    apiKey: currentKey,
+    model,
+    system: systemPrompt,
+    messages: [{ role: 'user', content: 'Generate the structured investigative Cross-Reference Report.' }],
+    temperature: 0.2, // Lower temperature for more analytical/factual extraction
+    maxTokens: 3000,
+    useSearch: true,
+    autoContinue: options.autoContinue,
+  })
 }
 
 /**
  * Converts a generated textual Cross-Reference Report into a strict Markdown table.
  */
-export async function generateCrossReferenceTable(reportText, apiKey, model, geminiKey, anthropicKey) {
-  const isGoogle = model.startsWith('gemini') || model.startsWith('gemma')
-  const isAnthropic = model.startsWith('claude')
+export async function generateCrossReferenceTable(reportText, apiKey, model, geminiKey, anthropicKey, options = {}) {
   const currentKey = keyForModel(model, { apiKey, geminiKey, anthropicKey })
 
   if (!currentKey) {
@@ -513,65 +457,16 @@ FORMAT REQUIREMENT:
 You MUST output ONLY a markdown table with exactly these columns:
 | Topic/Entity | Competing Claims & Sources | Assumptions & Fallacies | Logic & Evidence Gaps | Narrative & Rhetoric | Status (Agree/Conflict) |`
 
-  if (isGoogle) {
-    const contents = [
-      { role: 'user', parts: [{ text: systemPrompt }] },
-      { role: 'user', parts: [{ text: `Here is the report to convert:\n\n${reportText}\n\nGenerate the Markdown table.` }] }
-    ]
-
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${currentKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents,
-        generationConfig: { temperature: 0.1 }
-      }),
-    })
-
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}))
-      throw new Error(err.error?.message || `Google AI API error: ${response.status}`)
-    }
-
-    const data = await response.json()
-    return data.candidates[0]?.content?.parts[0]?.text || ''
-  } else {
-    const messages = [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: `Here is the report to convert:\n\n${reportText}\n\nGenerate the Markdown table.` },
-    ]
-
-    if (isAnthropic) {
-      return callAnthropic({
-        apiKey: currentKey, model,
-        system: messages[0].content,
-        messages: messages.slice(1),
-        temperature: 0.1, maxTokens: 2000,
-      })
-    }
-
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${currentKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages,
-        temperature: 0.1,
-        max_completion_tokens: 2000,
-      }),
-    })
-
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}))
-      throw new Error(err.error?.message || `OpenAI API error: ${response.status}`)
-    }
-
-    const data = await response.json()
-    return data.choices[0]?.message?.content || ''
-  }
+  return runCompletion({
+    apiKey: currentKey,
+    model,
+    system: systemPrompt,
+    messages: [{ role: 'user', content: `Here is the report to convert:\n\n${reportText}\n\nGenerate the Markdown table.` }],
+    temperature: 0.1,
+    maxTokens: 2000,
+    useSearch: false,
+    autoContinue: options.autoContinue,
+  })
 }
 
 /**
@@ -582,10 +477,7 @@ You MUST output ONLY a markdown table with exactly these columns:
  */
 export const LENS_KICKOFF = 'Begin the analysis now. Output the complete report in the format specified.'
 
-export async function callLensChat(lensNodeId, userMessage, renderedPrompt, history, nodes, edges, apiKey, model, geminiKey, anthropicKey) {
-  const isGoogle = model.startsWith('gemini') || model.startsWith('gemma')
-  const isGemma = model.startsWith('gemma')
-  const isAnthropic = model.startsWith('claude')
+export async function callLensChat(lensNodeId, userMessage, renderedPrompt, history, nodes, edges, apiKey, model, geminiKey, anthropicKey, options = {}) {
   const currentKey = keyForModel(model, { apiKey, geminiKey, anthropicKey })
 
   if (!currentKey) {
@@ -606,64 +498,19 @@ export async function callLensChat(lensNodeId, userMessage, renderedPrompt, hist
 
   const trimmedHistory = (history || []).slice(-20)
 
-  if (isGoogle) {
-    const contents = [
-      { role: 'user', parts: [{ text: `SYSTEM INSTRUCTION: ${systemPrompt}` }] },
-      ...trimmedHistory.map(m => ({
-        role: m.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: m.content }],
-      })),
-      { role: 'user', parts: [{ text: userMessage }] },
-    ]
-
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${currentKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents,
-        generationConfig: { temperature: 0.4 },
-        ...(isGemma ? {} : { tools: [{ googleSearch: {} }] }),
-      }),
-    })
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}))
-      throw new Error(err.error?.message || `Google AI API error: ${response.status}`)
-    }
-    const data = await response.json()
-    return data.candidates[0]?.content?.parts[0]?.text || ''
-  }
-
-  const messages = [
-    { role: 'system', content: systemPrompt },
-    ...trimmedHistory.map(m => ({ role: m.role, content: m.content })),
-    { role: 'user', content: userMessage },
-  ]
-
-  if (isAnthropic) {
-    return callAnthropic({
-      apiKey: currentKey, model,
-      system: messages[0].content,
-      messages: messages.slice(1),
-      temperature: 0.4, maxTokens: 4000,
-    })
-  }
-
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${currentKey}` },
-    body: JSON.stringify({
-      model,
-      messages,
-      temperature: 0.4,
-      max_completion_tokens: 4000,
-    }),
+  return runCompletion({
+    apiKey: currentKey,
+    model,
+    system: systemPrompt,
+    messages: [
+      ...trimmedHistory.map(m => ({ role: m.role, content: m.content })),
+      { role: 'user', content: userMessage },
+    ],
+    temperature: 0.4,
+    maxTokens: 4000,
+    useSearch: true,
+    autoContinue: options.autoContinue,
   })
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}))
-    throw new Error(err.error?.message || `OpenAI API error: ${response.status}`)
-  }
-  const data = await response.json()
-  return data.choices[0]?.message?.content || ''
 }
 
 /**

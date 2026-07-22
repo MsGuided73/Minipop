@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Bot, Type, Globe, Image, Youtube, FileText, Trash2, Settings, Download, Upload, Plus, ChevronDown, Zap, UserSquare, Sun, Moon, Wand2, Mic, GitCompare, Layers, Eye, Cpu, Check } from 'lucide-react'
+import { Bot, Type, Globe, Image, Youtube, FileText, Trash2, Settings, Download, Upload, Plus, ChevronDown, Zap, UserSquare, Sun, Moon, Wand2, Mic, GitCompare, Layers, Eye, Cpu, Check, Infinity as InfinityIcon } from 'lucide-react'
 import { useCanvas } from '../context/CanvasContext'
 import { MODELS, modelLabel } from '../constants/models'
 import './Toolbar.css'
@@ -168,6 +168,27 @@ export default function Toolbar({ onAddNode, theme, onToggleTheme }) {
           </div>
         )}
       </div>
+
+      <div className="toolbar-divider" />
+
+      {/* Auto-continue — applies to every prompt run this session */}
+      <button
+        className={`toolbar-toggle ${state.autoContinue ? 'on' : ''}`}
+        onClick={() => dispatch({ type: 'SET_AUTO_CONTINUE', enabled: !state.autoContinue })}
+        role="switch"
+        aria-checked={state.autoContinue}
+        title={
+          state.autoContinue
+            ? 'Auto-continue is ON — any prompt cut off mid-answer is automatically told to continue until complete. Applies to every node.'
+            : 'Auto-continue is OFF — long answers may stop at the model’s output limit.'
+        }
+      >
+        <InfinityIcon size={13} />
+        <span className="toolbar-toggle-label">Auto-continue</span>
+        <span className="toolbar-toggle-track">
+          <span className="toolbar-toggle-thumb" />
+        </span>
+      </button>
 
       <div className="toolbar-divider" />
 

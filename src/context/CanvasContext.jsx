@@ -52,11 +52,19 @@ function readModel() {
   return VALID_MODELS.includes(stored) ? stored : 'gpt-4o'
 }
 
+// Auto-continue: when on, any prompt that gets cut off by the model's output-token
+// ceiling is automatically told to "continue" until the response actually finishes.
+// Off by default — it can multiply the token cost of a single run.
+function readAutoContinue() {
+  return localStorage.getItem('poppyai_auto_continue') === 'true'
+}
+
 const initialState = {
   apiKey: readApiKey(),
   geminiKey: readGeminiKey(),
   anthropicKey: readAnthropicKey(),
   model: readModel(),
+  autoContinue: readAutoContinue(),
   settingsOpen: false,
   boardId: localStorage.getItem('poppyai_boardId') || uuidv4(),
   boardName: localStorage.getItem('poppyai_boardName') || 'Untitled Board',
@@ -90,6 +98,12 @@ function canvasReducer(state, action) {
     case 'SET_MODEL':
       localStorage.setItem('poppyai_model', action.model)
       return { ...state, model: action.model }
+
+    case 'SET_AUTO_CONTINUE': {
+      const next = !!action.enabled
+      localStorage.setItem('poppyai_auto_continue', String(next))
+      return { ...state, autoContinue: next }
+    }
 
     case 'TOGGLE_SETTINGS':
       return { ...state, settingsOpen: !state.settingsOpen }
