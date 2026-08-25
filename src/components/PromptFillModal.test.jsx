@@ -163,3 +163,88 @@ describe('PromptFillModal — fill-and-spawn mode', () => {
     expect(onClose).toHaveBeenCalled()
   })
 })
+
+// ── Saving the filled-in answers from the fill flow ──────────────────────────
+describe('PromptFillModal — save answers as a prompt', () => {
+  const PROMPT = {
+    id: 'p-2',
+    title: 'How-To Guide',
+    body: 'Write for {{target_audience}} at {{depth_level}} depth.',
+    description: 'A guide',
+    tags: ['guide'],
+    variables: [
+      { name: 'target_audience', label: 'Audience', type: 'text', default: 'general readers' },
+      { name: 'depth_level', label: 'Depth', type: 'select', default: 'exhaustive', options: ['standard', 'exhaustive'] },
+    ],
+  }
+
+  test('offers a save control seeded with a suggested title', () => {
+    render(<PromptFillModal prompt={PROMPT} onClose={vi.fn()} onSpawnLensNode={vi.fn()} />)
+
+    expect(screen.getByPlaceholderText('Name your saved version')).toHaveValue('How-To Guide (custom)')
+    expect(screen.getByRole('button', { name: /save prompt/i })).toBeInTheDocument()
+    // Spawning stays the primary action — saving must not replace it.
+    expect(screen.getByRole('button', { name: /spawn lens node/i })).toBeInTheDocument()
+  })
+
+  test('promotes the edited field answers to variable defaults and keeps the modal open', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    const onRefreshLibrary = vi.fn()
+    render(
+      <PromptFillModal
+        prompt={PROMPT}
+        onClose={onClose}
+        onSpawnLensNode={vi.fn()}
+        onRefreshLibrary={onRefreshLibrary}
+      />
+    )
+
+    // The whole point: edit a field first, then save.
+    const audience = screen.getByDisplayValue('general readers')
+    await user.clear(audience)
+    await user.type(audience, 'burned-out ER nurses')
+
+    await user.click(screen.getByRole('button', { name: /save prompt/i }))
+
+    await waitFor(() => expect(createPromptMock).toHaveBeenCalledTimes(1))
+    const payload = createPromptMock.mock.calls[0][0]
+    expect(payload).toMatchObject({
+      title: 'How-To Guide (custom)',
+      body: 'Write for {{target_audience}} at {{depth_level}} depth.',
+      tags: ['guide'],
+      parentId: 'p-2',
+    })
+    // The typed answer becomes the new default; untouched fields keep theirs.
+    expect(payload.variables).toEqual([
+      expect.objectContaining({ name: 'target_audience', default: 'burned-out ER nurses' }),
+      expect.objectContaining({ name: 'depth_level', default: 'exhaustive' }),
+    ])
+    expect(onRefreshLibrary).toHaveBeenCalledTimes(1)
+    // Saving is not spawning — the user may still want to run it.
+    expect(onClose).not.toHaveBeenCalled()
+    expect(await screen.findByText(/Saved "How-To Guide \(custom\)" to the library\./)).toBeInTheDocument()
+  })
+
+  test('blocks saving without a title', async () => {
+    const user = userEvent.setup()
+    render(<PromptFillModal prompt={PROMPT} onClose={vi.fn()} onSpawnLensNode={vi.fn()} />)
+
+    await user.clear(screen.getByPlaceholderText('Name your saved version'))
+    // An empty title disables the button outright, so nothing can be sent.
+    expect(screen.getByRole('button', { name: /save prompt/i })).toBeDisabled()
+    expect(createPromptMock).not.toHaveBeenCalled()
+  })
+
+  test('is hidden for a prompt with no variables — there are no answers to save', () => {
+    render(
+      <PromptFillModal
+        prompt={{ id: 'p-3', title: 'Static', body: 'No variables here.', variables: [] }}
+        onClose={vi.fn()}
+        onSpawnLensNode={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByPlaceholderText('Name your saved version')).not.toBeInTheDocument()
+  })
+})

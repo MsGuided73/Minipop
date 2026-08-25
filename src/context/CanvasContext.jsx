@@ -54,9 +54,11 @@ function readModel() {
 
 // Auto-continue: when on, any prompt that gets cut off by the model's output-token
 // ceiling is automatically told to "continue" until the response actually finishes.
-// Off by default — it can multiply the token cost of a single run.
+// On by default — the library defaults to exhaustive depth, which regularly runs
+// past a single response. Turn it off in the toolbar to cap the cost of a run.
 function readAutoContinue() {
-  return localStorage.getItem('poppyai_auto_continue') === 'true'
+  const stored = localStorage.getItem('poppyai_auto_continue')
+  return stored === null ? true : stored === 'true'
 }
 
 const initialState = {

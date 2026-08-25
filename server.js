@@ -417,7 +417,7 @@ function mapPromptRow(row) {
     description: row.description || '',
     tags: row.tags || [],
     variables: row.variables || [],
-    defaultRunMode: row.default_run_mode || 'review',
+    defaultRunMode: row.default_run_mode || 'auto',
     parentId: row.parent_id || null,
     isSeed: !!row.is_seed,
     createdAt: row.created_at,
@@ -451,7 +451,7 @@ app.post('/api/v1/prompts', authMiddleware, requireSupabase, async (req, res) =>
     description: p.description || null,
     tags: Array.isArray(p.tags) ? p.tags : [],
     variables: Array.isArray(p.variables) ? p.variables : [],
-    default_run_mode: p.defaultRunMode === 'auto' ? 'auto' : 'review',
+    default_run_mode: p.defaultRunMode === 'review' ? 'review' : 'auto',
     parent_id: p.parentId || null,
     is_seed: false,
   };
@@ -471,7 +471,7 @@ app.put('/api/v1/prompts/:id', authMiddleware, requireSupabase, async (req, res)
     ...(p.description !== undefined && { description: p.description }),
     ...(p.tags !== undefined && { tags: Array.isArray(p.tags) ? p.tags : [] }),
     ...(p.variables !== undefined && { variables: Array.isArray(p.variables) ? p.variables : [] }),
-    ...(p.defaultRunMode !== undefined && { default_run_mode: p.defaultRunMode === 'auto' ? 'auto' : 'review' }),
+    ...(p.defaultRunMode !== undefined && { default_run_mode: p.defaultRunMode === 'review' ? 'review' : 'auto' }),
     updated_at: new Date().toISOString(),
   };
   const { data, error } = await supabase.from('pop_prompts').update(update).eq('id', req.params.id).select('*').single();

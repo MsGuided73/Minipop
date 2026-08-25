@@ -27,3 +27,6 @@ Thumbs.db
 # Scratchpads & Test scripts (to prevent API key leaks)
 test*.js
 test*.mjs
+
+# Supabase CLI scratch state
+supabase/.temp/

@@ -152,7 +152,9 @@ Return ONLY a JSON array (no prose, no markdown fences). Each element must be an
 - "options" (string[], required only when type is "select")
 - "autofill_source" (optional: "connected_node_type" if it should be inferred from connected source nodes)
 
-Aim for 3–6 variables. Prefer: source type, user goals, target audience, depth/tone modifiers. Do NOT invent variables that don't make the prompt more flexible.`
+Aim for 3–6 variables. Prefer: source type, user goals, target audience, depth/tone modifiers. Do NOT invent variables that don't make the prompt more flexible.
+
+For any variable controlling depth, length, thoroughness, or output volume, the "default" MUST be the most thorough option available — this library defaults to exhaustive output.`
 
   const user = `Analyze this prompt and propose variables:\n\n---\n${body}\n---`
 

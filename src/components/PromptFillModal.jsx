@@ -53,9 +53,14 @@ export default function PromptFillModal({
     reconciled.forEach(v => { initial[v.name] = v.default ?? '' })
     return initial
   })
-  const [runImmediately, setRunImmediately] = useState(prompt.defaultRunMode === 'auto')
+  const [runImmediately, setRunImmediately] = useState(prompt.defaultRunMode !== 'review')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+
+  // ─── "Save these answers" state (fill flow) ─────────────────────────────
+  const [saveTitle, setSaveTitle] = useState(() => suggestVariationTitle(prompt.title))
+  const [savingAnswers, setSavingAnswers] = useState(false)
+  const [savedNotice, setSavedNotice] = useState('')
 
   // Resolve target source: prefer explicit selection, else fall back to the most
   // recent content node (matches App.jsx handleSpawnLensNode auto-detection).
@@ -143,6 +148,50 @@ export default function PromptFillModal({
       setError(err.message)
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  // Save the answers typed into the fill fields as a reusable prompt. The body is
+  // untouched — only each variable's `default` is replaced with what the user just
+  // entered, so the prompt stays templated and reopens pre-filled with their wording.
+  // Deliberately does not close the modal: saving and spawning are separate choices.
+  async function handleSaveAnswers() {
+    const title = saveTitle.trim()
+    if (!title) {
+      setError('Give the saved prompt a title.')
+      return
+    }
+    setSavingAnswers(true)
+    setError('')
+    setSavedNotice('')
+    try {
+      const variables = reconciled.map(v => {
+        const value = values[v.name]
+        if (value == null || value === '') return v
+        const next = { ...v, default: value }
+        // A select can only render a default that exists in its own options, and
+        // autofill can produce values outside that list (e.g. a media node maps to
+        // a source type the seed options never listed). Widen rather than drop it.
+        if (v.type === 'select' && Array.isArray(v.options) && !v.options.includes(value)) {
+          next.options = [...v.options, value]
+        }
+        return next
+      })
+
+      await createPrompt({
+        title,
+        body: prompt.body,
+        description: prompt.description || null,
+        tags: prompt.tags || [],
+        variables,
+        ...(prompt.id ? { parentId: prompt.id } : {}),
+      })
+      onRefreshLibrary?.()
+      setSavedNotice(`Saved "${title}" to the library.`)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSavingAnswers(false)
     }
   }
 
@@ -297,6 +346,43 @@ export default function PromptFillModal({
                   Run immediately (otherwise the Lens Node opens in review mode with a Run button)
                 </label>
               </div>
+
+              {/* Save the filled-in answers back to the library, after editing them. */}
+              {reconciled.length > 0 && (
+                <div
+                  className="settings-section"
+                  style={{ borderTop: '1px solid var(--border-default)', paddingTop: 14 }}
+                >
+                  <label className="settings-label">Save these answers as a reusable prompt</label>
+                  <p className="settings-hint" style={{ marginTop: 2, marginBottom: 8 }}>
+                    Keeps this prompt's body and makes whatever you typed above the new defaults,
+                    so your wording is already filled in next time.
+                  </p>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <input
+                      className="input settings-input"
+                      style={{ flex: 1 }}
+                      value={saveTitle}
+                      onChange={e => { setSaveTitle(e.target.value); setSavedNotice('') }}
+                      placeholder="Name your saved version"
+                    />
+                    <button
+                      className="btn btn-ghost"
+                      style={{ flexShrink: 0 }}
+                      onClick={handleSaveAnswers}
+                      disabled={savingAnswers || !saveTitle.trim()}
+                      title="Save these field answers to the library as a new prompt"
+                    >
+                      <Save size={13} /> {savingAnswers ? 'Saving…' : 'Save Prompt'}
+                    </button>
+                  </div>
+                  {savedNotice && (
+                    <p className="settings-hint" style={{ marginTop: 8, color: 'var(--accent-success)' }}>
+                      {savedNotice}
+                    </p>
+                  )}
+                </div>
+              )}
             </>
           )}
 

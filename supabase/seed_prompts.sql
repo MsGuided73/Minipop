@@ -72,14 +72,14 @@ with shared as (
       "name": "depth_level",
       "type": "select",
       "label": "Depth",
-      "default": "standard",
+      "default": "exhaustive",
       "options": ["quick scan","standard","exhaustive"],
       "description": "How thorough should the output be?"
     }
   ]$vars$::jsonb as variables
 )
 insert into pop_prompts (title, description, tags, body, variables, default_run_mode, is_seed)
-select x.title, x.description, x.tags, x.body, shared.variables, 'review', true
+select x.title, x.description, x.tags, x.body, shared.variables, 'auto', true
 from shared,
 (values
 

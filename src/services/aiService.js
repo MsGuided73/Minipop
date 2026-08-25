@@ -156,6 +156,25 @@ function keyForModel(model, { apiKey, geminiKey, anthropicKey }) {
 // stitch the pieces together. Capped so a runaway model can't bill forever.
 const MAX_AUTO_CONTINUE_ROUNDS = 5
 
+// Lens prompts default to exhaustive depth, so a single turn needs real headroom.
+// Clamped per model below — asking for more than a model can emit is a 400, not a
+// truncation.
+const LENS_MAX_TOKENS = 16000
+
+// Per-model output ceilings. Google is absent on purpose: that branch never sends
+// an explicit limit, so Gemini/Gemma already run to their own maximum.
+const MODEL_OUTPUT_CEILING = {
+  'gpt-4o': 16384,
+  'o1-preview': 32768,
+  'claude-haiku-4-5-20251001': 64000,
+}
+const DEFAULT_OUTPUT_CEILING = 8192
+
+function clampMaxTokens(model, maxTokens) {
+  if (maxTokens == null) return maxTokens
+  return Math.min(maxTokens, MODEL_OUTPUT_CEILING[model] ?? DEFAULT_OUTPUT_CEILING)
+}
+
 const CONTINUE_INSTRUCTION =
   'Your previous message was cut off before it finished. Continue from exactly where you stopped, ' +
   'mid-sentence if necessary. Do not repeat any text you already wrote, do not summarize what came ' +
@@ -173,6 +192,7 @@ const CONTINUE_INSTRUCTION =
  */
 async function callProvider({ apiKey, model, system, messages, temperature, maxTokens, useSearch = false }) {
   const provider = getProvider(model)
+  const cappedMaxTokens = clampMaxTokens(model, maxTokens)
 
   if (provider === 'google') {
     const isGemma = model.startsWith('gemma')
@@ -217,7 +237,7 @@ async function callProvider({ apiKey, model, system, messages, temperature, maxT
       },
       body: JSON.stringify({
         model,
-        max_tokens: maxTokens,
+        max_tokens: cappedMaxTokens,
         ...(system ? { system } : {}),
         messages,
         ...(temperature != null ? { temperature } : {}),
@@ -248,7 +268,7 @@ async function callProvider({ apiKey, model, system, messages, temperature, maxT
         ...(system ? [{ role: 'system', content: system }] : []),
         ...messages,
       ],
-      max_completion_tokens: maxTokens,
+      max_completion_tokens: cappedMaxTokens,
       ...(temperature != null && !isReasoningModel ? { temperature } : {}),
     }),
   })
@@ -507,7 +527,7 @@ export async function callLensChat(lensNodeId, userMessage, renderedPrompt, hist
       { role: 'user', content: userMessage },
     ],
     temperature: 0.4,
-    maxTokens: 4000,
+    maxTokens: LENS_MAX_TOKENS,
     useSearch: true,
     autoContinue: options.autoContinue,
   })
