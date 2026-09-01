@@ -83,11 +83,13 @@ describe('createPrompt', () => {
     const result = await createPrompt(payload)
 
     expect(result).toEqual(created)
-    expect(global.fetch).toHaveBeenCalledWith('/api/v1/prompts', expect.objectContaining({
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    }))
+    // Requests now go through apiFetch, which normalises headers into a Headers
+    // instance so it can attach the auth token — assert on content, not shape.
+    const [url, init] = global.fetch.mock.calls[0]
+    expect(url).toBe('/api/v1/prompts')
+    expect(init.method).toBe('POST')
+    expect(init.body).toBe(JSON.stringify(payload))
+    expect(new Headers(init.headers).get('Content-Type')).toBe('application/json')
   })
 
   test('throws an informative error on a non-ok response', async () => {

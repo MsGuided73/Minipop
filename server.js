@@ -1,5 +1,7 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import { exec } from 'child_process';
 import util from 'util';
 const execPromise = util.promisify(exec);
@@ -49,20 +51,93 @@ const requireSupabase = (req, res, next) => {
   next();
 };
 
-// Middleware
-app.use(cors());
+// ─── Middleware ──────────────────────────────────────────────────────────────
+
+// Security headers. CSP is disabled here because the SPA loads its own inline
+// styles and talks to three AI providers directly from the browser; enabling the
+// default policy would block them. The remaining headers (nosniff, frameguard,
+// referrer policy, HSTS) all apply.
+app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
+
+// CORS: an open `cors()` let any website on the internet call this API with the
+// visitor's credentials. Restrict to the origins we actually serve. Set
+// ALLOWED_ORIGINS (comma-separated) in production; dev defaults cover Vite.
+const DEFAULT_ORIGINS = ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173'];
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || '')
+  .split(',').map(o => o.trim()).filter(Boolean);
+const originList = allowedOrigins.length ? allowedOrigins : DEFAULT_ORIGINS;
+app.use(cors({
+  origin(origin, cb) {
+    // No Origin header = same-origin or a non-browser client (curl, the app's own
+    // server-side calls). Those are not what CORS is protecting against.
+    if (!origin || originList.includes(origin)) return cb(null, true);
+    cb(new Error(`Origin ${origin} is not allowed`));
+  },
+  credentials: true,
+}));
+
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Simple Security: X-Poppy-Key
-// In production, set POPPY_API_KEY in your environment to protect these endpoints.
-const API_KEY = process.env.POPPY_API_KEY;
-const authMiddleware = (req, res, next) => {
-  if (API_KEY && req.headers['x-poppy-key'] !== API_KEY) {
-    return res.status(401).json({ error: 'Unauthorized: Missing or invalid X-Poppy-Key' });
+// Rate limiting. The transcript endpoint spends real money (Apify) and the write
+// endpoints accept 50mb bodies, so both are worth capping per IP.
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 600,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { error: 'Too many requests — slow down and try again shortly.' },
+});
+const transcriptLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 60,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { error: 'Transcript rate limit reached. Try again in a few minutes.' },
+});
+app.use('/api/', apiLimiter);
+
+// ─── Authentication ──────────────────────────────────────────────────────────
+//
+// Every /api/v1 route requires a Supabase session. The browser sends the access
+// token as `Authorization: Bearer <jwt>`; we verify it against Supabase and then
+// build a per-request client that carries the same token, so row-level security
+// evaluates auth.uid() as the calling user. Scoping therefore happens in the
+// database, not only in this file — a missed .eq('user_id') cannot leak another
+// user's rows.
+function clientForToken(token) {
+  return createClient(supabaseUrl, supabaseKey, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  });
+}
+
+const requireAuth = async (req, res, next) => {
+  if (!supabase) {
+    return res.status(503).json({
+      error: 'Database unavailable',
+      detail: 'SUPABASE_URL and SUPABASE_ANON_KEY are not configured on this server.',
+    });
   }
+
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7).trim() : null;
+  if (!token) {
+    return res.status(401).json({ error: 'Authentication required', detail: 'Sign in to continue.' });
+  }
+
+  const { data, error } = await supabase.auth.getUser(token);
+  if (error || !data?.user) {
+    return res.status(401).json({ error: 'Invalid or expired session', detail: 'Sign in again.' });
+  }
+
+  req.user = data.user;
+  req.db = clientForToken(token);
   next();
 };
+
+// Routes read through this so the request's user-scoped client is always used.
+const db = (req) => req.db || supabase;
 
 // Health/diagnostics — no auth, no DB required. Use to confirm the server saw .env correctly.
 app.get('/api/health', (req, res) => {
@@ -79,7 +154,7 @@ app.get('/api/health', (req, res) => {
     supabaseKeySet: !!supabaseKey,
     supabaseKeyLength: supabaseKey ? supabaseKey.length : 0,
     apifyConfigured: !!process.env.APIFY_API_TOKEN,
-    apiKeyAuthEnabled: !!process.env.POPPY_API_KEY,
+    authMode: 'supabase-jwt',
     nodeEnv: process.env.NODE_ENV || 'development',
     uptimeSec: Math.round(process.uptime()),
     relevantEnvKeysFound: relevantEnvKeys,
@@ -94,7 +169,7 @@ app.use(express.static(path.join(__dirname, 'dist')));
  * YouTube Data API
  * Supports both /api/transcript and /api/v1/youtube (unified)
  */
-app.get(['/api/transcript', '/api/v1/youtube'], authMiddleware, async (req, res) => {
+app.get(['/api/transcript', '/api/v1/youtube'], transcriptLimiter, requireAuth, async (req, res) => {
   const { videoId: queryVideoId, url: queryUrl, includeComments, force } = req.query;
   let videoId = queryVideoId;
 
@@ -115,7 +190,7 @@ app.get(['/api/transcript', '/api/v1/youtube'], authMiddleware, async (req, res)
   // Serve from pop_transcripts unless the client forces a refresh, or asked for
   // comments and the cached row has none yet. Skipped entirely if Supabase isn't configured.
   if (!bypassCache && supabase) {
-    const { data: cached } = await supabase
+    const { data: cached } = await db(req)
       .from('pop_transcripts')
       .select('*')
       .eq('video_id', videoId)
@@ -258,7 +333,7 @@ app.get(['/api/transcript', '/api/v1/youtube'], authMiddleware, async (req, res)
 
     // ── Upsert into cache (only if we actually got a transcript and Supabase is up) ──
     if (cleaned && cleaned.length > 0 && supabase) {
-      const { error: upsertErr } = await supabase
+      const { error: upsertErr } = await db(req)
         .from('pop_transcripts')
         .upsert({
           video_id: videoId,
@@ -298,8 +373,8 @@ app.get(['/api/transcript', '/api/v1/youtube'], authMiddleware, async (req, res)
 /**
  * Boards API - Save/Load
  */
-app.get('/api/v1/boards', authMiddleware, requireSupabase, async (req, res) => {
-  const { data, error } = await supabase.from('pop_boards').select('id, name, folder_id, created_at');
+app.get('/api/v1/boards', requireAuth, async (req, res) => {
+  const { data, error } = await db(req).from('pop_boards').select('id, name, folder_id, created_at');
   
   if (error) {
     console.error('[Supabase Error]:', error);
@@ -315,12 +390,13 @@ app.get('/api/v1/boards', authMiddleware, requireSupabase, async (req, res) => {
   res.json(summary);
 });
 
-app.post('/api/v1/boards', authMiddleware, requireSupabase, async (req, res) => {
+app.post('/api/v1/boards', requireAuth, async (req, res) => {
   const board = req.body;
   if (!board.id || !board.nodes) return res.status(400).json({ error: 'Invalid board data' });
   
-  const { error } = await supabase.from('pop_boards').upsert({
+  const { error } = await db(req).from('pop_boards').upsert({
     id: board.id,
+    user_id: req.user.id,
     name: board.name,
     folder_id: board.folderId || null,
     nodes: board.nodes,
@@ -336,8 +412,8 @@ app.post('/api/v1/boards', authMiddleware, requireSupabase, async (req, res) => 
   res.json({ success: true, id: board.id });
 });
 
-app.get('/api/v1/boards/:id', authMiddleware, requireSupabase, async (req, res) => {
-  const { data, error } = await supabase.from('pop_boards').select('*').eq('id', req.params.id).single();
+app.get('/api/v1/boards/:id', requireAuth, async (req, res) => {
+  const { data, error } = await db(req).from('pop_boards').select('*').eq('id', req.params.id).single();
   
   if (error) {
     console.error('[Supabase Error]:', error);
@@ -358,8 +434,8 @@ app.get('/api/v1/boards/:id', authMiddleware, requireSupabase, async (req, res) 
 /**
  * Folders API - Save/Load/Delete
  */
-app.get('/api/v1/folders', authMiddleware, requireSupabase, async (req, res) => {
-  const { data, error } = await supabase.from('pop_folders').select('*');
+app.get('/api/v1/folders', requireAuth, async (req, res) => {
+  const { data, error } = await db(req).from('pop_folders').select('*');
   
   if (error) {
     console.error('[Supabase Error]:', error);
@@ -376,12 +452,13 @@ app.get('/api/v1/folders', authMiddleware, requireSupabase, async (req, res) => 
   res.json(folders);
 });
 
-app.post('/api/v1/folders', authMiddleware, requireSupabase, async (req, res) => {
+app.post('/api/v1/folders', requireAuth, async (req, res) => {
   const folder = req.body;
   if (!folder.id || !folder.name) return res.status(400).json({ error: 'Invalid folder data' });
   
-  const { error } = await supabase.from('pop_folders').upsert({
+  const { error } = await db(req).from('pop_folders').upsert({
     id: folder.id,
+    user_id: req.user.id,
     name: folder.name,
     parent_id: folder.parentId || null,
     updated_at: new Date().toISOString()
@@ -395,8 +472,8 @@ app.post('/api/v1/folders', authMiddleware, requireSupabase, async (req, res) =>
   res.json({ success: true, id: folder.id });
 });
 
-app.delete('/api/v1/folders/:id', authMiddleware, requireSupabase, async (req, res) => {
-  const { error } = await supabase.from('pop_folders').delete().eq('id', req.params.id);
+app.delete('/api/v1/folders/:id', requireAuth, async (req, res) => {
+  const { error } = await db(req).from('pop_folders').delete().eq('id', req.params.id);
   
   if (error) {
     console.error('[Supabase Error]:', error);
@@ -425,8 +502,8 @@ function mapPromptRow(row) {
   };
 }
 
-app.get('/api/v1/prompts', authMiddleware, requireSupabase, async (req, res) => {
-  let query = supabase.from('pop_prompts').select('*').order('created_at', { ascending: false });
+app.get('/api/v1/prompts', requireAuth, async (req, res) => {
+  let query = db(req).from('pop_prompts').select('*').order('created_at', { ascending: false });
   if (req.query.tag) query = query.contains('tags', [req.query.tag]);
   const { data, error } = await query;
   if (error) {
@@ -436,16 +513,17 @@ app.get('/api/v1/prompts', authMiddleware, requireSupabase, async (req, res) => 
   res.json(data.map(mapPromptRow));
 });
 
-app.get('/api/v1/prompts/:id', authMiddleware, requireSupabase, async (req, res) => {
-  const { data, error } = await supabase.from('pop_prompts').select('*').eq('id', req.params.id).single();
+app.get('/api/v1/prompts/:id', requireAuth, async (req, res) => {
+  const { data, error } = await db(req).from('pop_prompts').select('*').eq('id', req.params.id).single();
   if (error || !data) return res.status(404).json({ error: 'Prompt not found' });
   res.json(mapPromptRow(data));
 });
 
-app.post('/api/v1/prompts', authMiddleware, requireSupabase, async (req, res) => {
+app.post('/api/v1/prompts', requireAuth, async (req, res) => {
   const p = req.body;
   if (!p.title || !p.body) return res.status(400).json({ error: 'title and body are required' });
   const insert = {
+    user_id: req.user.id,
     title: p.title,
     body: p.body,
     description: p.description || null,
@@ -455,7 +533,7 @@ app.post('/api/v1/prompts', authMiddleware, requireSupabase, async (req, res) =>
     parent_id: p.parentId || null,
     is_seed: false,
   };
-  const { data, error } = await supabase.from('pop_prompts').insert(insert).select('*').single();
+  const { data, error } = await db(req).from('pop_prompts').insert(insert).select('*').single();
   if (error) {
     console.error('[Supabase Error]:', error);
     return res.status(500).json({ error: error.message });
@@ -463,7 +541,7 @@ app.post('/api/v1/prompts', authMiddleware, requireSupabase, async (req, res) =>
   res.json(mapPromptRow(data));
 });
 
-app.put('/api/v1/prompts/:id', authMiddleware, requireSupabase, async (req, res) => {
+app.put('/api/v1/prompts/:id', requireAuth, async (req, res) => {
   const p = req.body;
   const update = {
     ...(p.title !== undefined && { title: p.title }),
@@ -474,7 +552,7 @@ app.put('/api/v1/prompts/:id', authMiddleware, requireSupabase, async (req, res)
     ...(p.defaultRunMode !== undefined && { default_run_mode: p.defaultRunMode === 'review' ? 'review' : 'auto' }),
     updated_at: new Date().toISOString(),
   };
-  const { data, error } = await supabase.from('pop_prompts').update(update).eq('id', req.params.id).select('*').single();
+  const { data, error } = await db(req).from('pop_prompts').update(update).eq('id', req.params.id).select('*').single();
   if (error) {
     console.error('[Supabase Error]:', error);
     return res.status(500).json({ error: error.message });
@@ -483,12 +561,12 @@ app.put('/api/v1/prompts/:id', authMiddleware, requireSupabase, async (req, res)
   res.json(mapPromptRow(data));
 });
 
-app.delete('/api/v1/prompts/:id', authMiddleware, requireSupabase, async (req, res) => {
+app.delete('/api/v1/prompts/:id', requireAuth, async (req, res) => {
   // Block deletion of seed prompts; encourage variations instead
-  const { data: existing } = await supabase.from('pop_prompts').select('is_seed').eq('id', req.params.id).single();
+  const { data: existing } = await db(req).from('pop_prompts').select('is_seed').eq('id', req.params.id).single();
   if (existing?.is_seed) return res.status(400).json({ error: 'Seed prompts cannot be deleted. Save a variation instead.' });
 
-  const { error } = await supabase.from('pop_prompts').delete().eq('id', req.params.id);
+  const { error } = await db(req).from('pop_prompts').delete().eq('id', req.params.id);
   if (error) {
     console.error('[Supabase Error]:', error);
     return res.status(500).json({ error: error.message });
@@ -500,8 +578,8 @@ app.delete('/api/v1/prompts/:id', authMiddleware, requireSupabase, async (req, r
  * Knowledge Query API (Embed Tool)
  * Allows external apps to "Ask" a board a question.
  */
-app.post('/api/v1/boards/:id/query', authMiddleware, requireSupabase, async (req, res) => {
-  const { data: board, error } = await supabase.from('pop_boards').select('*').eq('id', req.params.id).single();
+app.post('/api/v1/boards/:id/query', requireAuth, async (req, res) => {
+  const { data: board, error } = await db(req).from('pop_boards').select('*').eq('id', req.params.id).single();
   if (error || !board) return res.status(404).json({ error: 'Board not found' });
 
   const { query } = req.body;

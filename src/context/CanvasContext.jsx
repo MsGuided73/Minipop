@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useReducer, useCallback, useRef } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import localforage from 'localforage'
+import { apiFetch } from '../services/apiClient'
 
 const CanvasContext = createContext(null)
 
@@ -234,7 +235,7 @@ export function CanvasProvider({ children }) {
         edges: edges,
         createdAt: new Date().toISOString()
       }
-      const res = await fetch('/api/v1/boards', {
+      const res = await apiFetch('/api/v1/boards', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -243,7 +244,7 @@ export function CanvasProvider({ children }) {
       return await res.json()
     },
     fetchBoardsFromServer: async () => {
-      const res = await fetch('/api/v1/boards')
+      const res = await apiFetch('/api/v1/boards')
       if (res.ok) {
         const boards = await res.json()
         dispatch({ type: 'SET_REMOTE_BOARDS', boards })
@@ -253,7 +254,7 @@ export function CanvasProvider({ children }) {
       // Clear persistence timer briefly so we don't accidentally save the old board while loading
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
       
-      const res = await fetch(`/api/v1/boards/${id}`)
+      const res = await apiFetch(`/api/v1/boards/${id}`)
       if (res.ok) {
         const board = await res.json()
         dispatch({ type: 'LOAD_BOARD_STATE', board })
@@ -277,7 +278,7 @@ export function CanvasProvider({ children }) {
     // Folder API wrappers
     fetchFoldersFromServer: async () => {
       try {
-        const res = await fetch('/api/v1/folders')
+        const res = await apiFetch('/api/v1/folders')
         if (res.ok) {
           const folders = await res.json()
           dispatch({ type: 'SET_FOLDERS', folders })
@@ -293,7 +294,7 @@ export function CanvasProvider({ children }) {
         parentId,
         createdAt: new Date().toISOString()
       }
-      const res = await fetch('/api/v1/folders', {
+      const res = await apiFetch('/api/v1/folders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -302,7 +303,7 @@ export function CanvasProvider({ children }) {
       return payload
     },
     deleteFolder: async (id) => {
-      const res = await fetch(`/api/v1/folders/${id}`, { method: 'DELETE' })
+      const res = await apiFetch(`/api/v1/folders/${id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error('Failed to delete folder')
     }
   }

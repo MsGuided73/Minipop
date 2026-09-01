@@ -30,3 +30,6 @@ test*.mjs
 
 # Supabase CLI scratch state
 supabase/.temp/
+
+# Local data snapshots (contain all board content — never commit)
+backups/

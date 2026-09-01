@@ -3,6 +3,8 @@
 // Prompt Library service: REST wrappers, variable parsing, rendering, AI-assisted
 // variable suggestion. The library is stored on Supabase via /api/v1/prompts.
 
+import { apiFetch } from './apiClient'
+
 const VARIABLE_RE = /\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g
 
 // ─── Variable parsing & rendering ───────────────────────────────────────────
@@ -92,19 +94,19 @@ async function parseError(res, fallback) {
 
 export async function listPrompts(tag = null) {
   const url = tag ? `/api/v1/prompts?tag=${encodeURIComponent(tag)}` : '/api/v1/prompts'
-  const res = await fetch(url)
+  const res = await apiFetch(url)
   if (!res.ok) throw await parseError(res, 'Failed to load prompts')
   return res.json()
 }
 
 export async function getPrompt(id) {
-  const res = await fetch(`/api/v1/prompts/${id}`)
+  const res = await apiFetch(`/api/v1/prompts/${id}`)
   if (!res.ok) throw await parseError(res, 'Prompt not found')
   return res.json()
 }
 
 export async function createPrompt(payload) {
-  const res = await fetch('/api/v1/prompts', {
+  const res = await apiFetch('/api/v1/prompts', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -114,7 +116,7 @@ export async function createPrompt(payload) {
 }
 
 export async function updatePrompt(id, payload) {
-  const res = await fetch(`/api/v1/prompts/${id}`, {
+  const res = await apiFetch(`/api/v1/prompts/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -124,7 +126,7 @@ export async function updatePrompt(id, payload) {
 }
 
 export async function deletePrompt(id) {
-  const res = await fetch(`/api/v1/prompts/${id}`, { method: 'DELETE' })
+  const res = await apiFetch(`/api/v1/prompts/${id}`, { method: 'DELETE' })
   if (!res.ok) throw await parseError(res, 'Failed to delete prompt')
   return res.json()
 }

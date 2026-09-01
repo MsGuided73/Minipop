@@ -4,6 +4,7 @@ import {
   ChevronDown, Plus, Trash2, Edit2, PanelLeftClose, PanelLeftOpen 
 } from 'lucide-react';
 import { useCanvas } from '../context/CanvasContext';
+import { apiFetch } from '../services/apiClient'
 import './Sidebar.css';
 
 export default function Sidebar({ isOpen, onToggle }) {
@@ -91,7 +92,7 @@ export default function Sidebar({ isOpen, onToggle }) {
       await saveBoardToServer(name, state.folderId);
       // Need a small delay before state updates can be completely relied upon without forcing a re-fetch manually
       // though saveBoard returns the board. We'll just re-fetch boards.
-      const res = await fetch('/api/v1/boards');
+      const res = await apiFetch('/api/v1/boards');
       if (res.ok) {
         const boards = await res.json();
         dispatch({ type: 'SET_REMOTE_BOARDS', boards });
