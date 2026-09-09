@@ -71,16 +71,13 @@ Added to the task list below.
 
 ## 4. Known problems
 
-**The new topbar renders at zero height.** `AppShell`'s `<header class="cl-topbar">`
-does not appear — a screenshot shows the icon rail starting at y≈0. The
-explorer from the same component renders correctly, the CSS loads, the JSX is
-present, and the floating `Toolbar` is `position: fixed` and centred so it
-cannot be covering the header's edges. Cause unknown; three attempts at fixing
-it from static analysis failed. **Needs a browser DevTools inspection** of the
-`.cl-shell` subtree — that will answer in seconds what code reading has not.
-
-Because of this, New and Save live in the floating `Toolbar` instead. That is
-also where they end up after the topbar/toolbar merge, so the work is not lost.
+**~~The new topbar renders at zero height~~ — RESOLVED.** It was never broken.
+DevTools showed the header present with every child and a computed height of
+51px; the browser had been serving a cached  that pinned the app to
+an older bundle. Fixed by sending  for index.html (a9191ed). Three
+earlier attempts to fix this as a CSS/layout bug were chasing a ghost — when a
+change is verifiably in the served bundle but not on screen, suspect caching
+before rewriting the code.
 
 **All 174 boards are unfiled.** The explorer groups by folder, but only 2
 folders exist and neither contains anything. The tree is currently a flat list
@@ -96,8 +93,8 @@ save immediately. Should compare against the loaded state instead.
 
 Ordered by value.
 
-1. **Diagnose the topbar** (§4) — blocks the topbar/toolbar merge and therefore
-   the mockup's single-bar layout.
+1. **Merge Toolbar into the topbar** — the mockup has one bar, not a floating
+   pill plus a header. The topbar works; the pill now duplicates its job.
 2. **Node cards + colored edges** — the biggest visual step. `LensNode` (533
    lines) becomes a compact card: type dot in its hue, status chip, 3-line
    preview, footer meta, Read button. Its chat moves into the reader.

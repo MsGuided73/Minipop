@@ -521,11 +521,6 @@ function CanvasApp() {
       <div className="app-main">
         <Toolbar 
           onAddNode={(type) => handleAddNode(type)} 
-          
-          onNewCanvas={handleNewCanvas}
-          onSaveCanvas={handleSaveCanvas}
-          isSaving={isSaving}
-          isDirty={isDirty}
           theme={theme}
           onToggleTheme={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
         />

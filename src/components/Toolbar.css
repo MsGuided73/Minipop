@@ -319,13 +319,3 @@
   outline-offset: 2px;
 }
 
-/* Save in the toolbar. Accent-filled only while there is unsaved work — the
-   one thing in this bar the user can actually lose. */
-.toolbar-save { gap: 6px; width: auto; padding: 0 10px; }
-.toolbar-save-label { font-size: 12px; font-weight: 600; }
-.toolbar-save.is-dirty {
-  background: var(--accent-primary);
-  color: var(--accent-ink, #1a1208);
-  border-color: var(--accent-primary);
-}
-.toolbar-save:disabled { opacity: .6; cursor: default; }
