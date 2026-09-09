@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect } from 'react'
 import { Handle, Position, NodeResizer } from '@xyflow/react'
 import { X, Youtube, ExternalLink, Loader, FileText, AlertCircle, Edit, Check, MessageSquare, RefreshCw, Eye } from 'lucide-react'
 import { useCanvas } from '../context/CanvasContext'
+import { apiFetch } from '../services/apiClient'
 import './nodes.css'
 
 // Supabase Edge Function — server-side transcript fetcher (no CORS issues)
@@ -74,7 +75,10 @@ export default function YouTubeNode({ id, data, selected }) {
       try {
         // Use relative path so it works in both local dev (via Vite proxy) and production (via server.js)
         const localProxyUrl = `/api/transcript?url=${encodeURIComponent(url)}&includeComments=${withComments}${force ? '&force=true' : ''}`
-        const localRes = await fetch(localProxyUrl)
+        // apiFetch, not fetch: /api/transcript requires a signed-in session like
+        // every other /api route. A bare fetch here 401s and silently drops to
+        // the edge-function fallback.
+        const localRes = await apiFetch(localProxyUrl)
         
         if (localRes.ok) {
           const localData = await localRes.json()
