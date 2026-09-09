@@ -392,7 +392,7 @@ app.get(['/api/transcript', '/api/v1/youtube'], transcriptLimiter, requireAuth, 
  * Boards API - Save/Load
  */
 app.get('/api/v1/boards', requireAuth, async (req, res) => {
-  const { data, error } = await db(req).from('pop_boards').select('id, name, folder_id, created_at');
+  const { data, error } = await db(req).from('pop_boards').select('id, name, folder_id, project_id, created_at');
   
   if (error) {
     console.error('[Supabase Error]:', error);
@@ -403,6 +403,7 @@ app.get('/api/v1/boards', requireAuth, async (req, res) => {
     id: b.id, 
     name: b.name, 
     folderId: b.folder_id || null,
+    projectId: b.project_id || null,
     createdAt: b.created_at 
   }));
   res.json(summary);
@@ -417,6 +418,7 @@ app.post('/api/v1/boards', requireAuth, async (req, res) => {
     user_id: req.user.id,
     name: board.name,
     folder_id: board.folderId || null,
+    project_id: board.projectId || null,
     nodes: board.nodes,
     edges: board.edges,
     updated_at: new Date().toISOString()
@@ -442,6 +444,7 @@ app.get('/api/v1/boards/:id', requireAuth, async (req, res) => {
     id: data.id,
     name: data.name,
     folderId: data.folder_id || null,
+    projectId: data.project_id || null,
     nodes: data.nodes,
     edges: data.edges,
     createdAt: data.created_at,
@@ -499,6 +502,38 @@ app.delete('/api/v1/folders/:id', requireAuth, async (req, res) => {
   }
 
   res.json({ success: true });
+});
+
+/**
+ * Projects API — a second, cross-cutting grouping for boards.
+ * A board sits in at most one folder (Subject) and one project at the same time.
+ */
+app.get('/api/v1/projects', requireAuth, async (req, res) => {
+  const { data, error } = await db(req)
+    .from('pop_projects').select('*').order('name', { ascending: true });
+  if (error) {
+    console.error('[Supabase Error]:', error);
+    return res.status(500).json({ error: error.message });
+  }
+  res.json(data.map(p => ({
+    id: p.id, name: p.name, color: p.color || null, createdAt: p.created_at,
+  })));
+});
+
+app.post('/api/v1/projects', requireAuth, async (req, res) => {
+  const name = (req.body?.name || '').trim();
+  if (!name) return res.status(400).json({ error: 'A project name is required' });
+
+  const { data, error } = await db(req)
+    .from('pop_projects')
+    .insert({ name, color: req.body?.color || null, user_id: req.user.id })
+    .select('*').single();
+
+  if (error) {
+    console.error('[Supabase Error]:', error);
+    return res.status(500).json({ error: error.message });
+  }
+  res.json({ id: data.id, name: data.name, color: data.color || null, createdAt: data.created_at });
 });
 
 /**

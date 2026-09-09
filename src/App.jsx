@@ -15,6 +15,8 @@ import '@xyflow/react/dist/style.css'
 import { CanvasProvider, useCanvas } from './context/CanvasContext'
 import Sidebar from './components/Sidebar'
 import AppShell from './components/shell/AppShell'
+import SaveCanvasDialog from './components/shell/SaveCanvasDialog'
+import { suggestCanvasName } from './lib/suggestCanvasName'
 import Toolbar from './components/Toolbar'
 import Settings from './components/Settings'
 import PromptPanel from './components/PromptPanel'
@@ -60,7 +62,7 @@ const EDGE_TYPES = {
 }
 
 function CanvasApp() {
-  const { state, dispatch, addNode, triggerSave, loadFromLocal, registerFlowInstance, loadBoardFromServer, saveBoardToServer, clearCanvas, setBoardInfo, fetchBoardsFromServer } = useCanvas()
+  const { state, dispatch, addNode, triggerSave, loadFromLocal, registerFlowInstance, loadBoardFromServer, saveBoardToServer, clearCanvas, setBoardInfo, fetchBoardsFromServer, createProject } = useCanvas()
   const [nodes, setNodes, onNodesChange] = useNodesState(state.nodes || [])
   const [edges, setEdges, onEdgesChange] = useEdgesState(state.edges || [])
   const [isDraggingOver, setIsDraggingOver] = useState(false)
@@ -83,27 +85,32 @@ function CanvasApp() {
     setIsDirty(false)
   }, [isDirty, nodes.length, clearCanvas, setBoardInfo])
 
-  const handleSaveCanvas = useCallback(async () => {
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false)
+
+  // Save always opens the dialog: it is the one moment the user is thinking
+  // about what this canvas is, which is the right time to name and file it.
+  const handleSaveCanvas = useCallback(() => setSaveDialogOpen(true), [])
+
+  const commitSave = useCallback(async ({ name, folderId, projectId, newProjectName }) => {
     setIsSaving(true)
     try {
-      let name = state.boardName
-      if (!name || name === 'Untitled Board' || name === 'Untitled Canvas') {
-        const entered = window.prompt('Name this canvas:', 'New Canvas')
-        if (!entered) return                    // cancelled — leave it dirty
-        name = entered.trim()
-        setBoardInfo(name, state.boardId, state.folderId)
-      }
-      await saveBoardToServer(name, state.folderId)
-      await fetchBoardsFromServer()             // so the tree shows it immediately
+      // Creating the project first means a failure there aborts before the
+      // board is written, rather than saving it into a project that does not exist.
+      let finalProjectId = projectId
+      if (newProjectName) finalProjectId = (await createProject(newProjectName)).id
+
+      setBoardInfo(name, state.boardId, folderId)
+      await saveBoardToServer(name, folderId, finalProjectId)
+      await fetchBoardsFromServer()
       setIsDirty(false)
+      setSaveDialogOpen(false)
     } catch (err) {
-      // Never swallow a failed save: the user must know the account copy is
-      // stale, or they close the tab believing the work is safe.
+      // Surface it and keep the dialog open so the entered name is not lost.
       window.alert('Could not save this canvas. ' + err.message)
     } finally {
       setIsSaving(false)
     }
-  }, [state.boardName, state.boardId, state.folderId, saveBoardToServer, setBoardInfo, fetchBoardsFromServer])
+  }, [state.boardId, saveBoardToServer, setBoardInfo, fetchBoardsFromServer, createProject])
   const [showMiniMap, setShowMiniMap] = useState(false)
   const [theme, setTheme] = useState(() => localStorage.getItem('contentloom-theme') || 'dark')
   const [contextMenu, setContextMenu] = useState(null)
@@ -700,6 +707,19 @@ function CanvasApp() {
         )}
       </div>
     </div>
+
+      <SaveCanvasDialog
+        open={saveDialogOpen}
+        suggestedName={suggestCanvasName(nodes)}
+        currentName={state.boardName}
+        folders={state.folders}
+        projects={state.projects}
+        currentFolderId={state.folderId}
+        currentProjectId={state.projectId}
+        isSaving={isSaving}
+        onCancel={() => setSaveDialogOpen(false)}
+        onSave={commitSave}
+      />
     </AppShell>
   )
 }

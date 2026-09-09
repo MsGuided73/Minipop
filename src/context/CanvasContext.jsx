@@ -74,6 +74,7 @@ const initialState = {
   folderId: localStorage.getItem('poppyai_folderId') || null,
   remoteBoards: [],
   folders: [],
+  projects: [],
   nodes: [],
   edges: [],
 }
@@ -134,6 +135,9 @@ function canvasReducer(state, action) {
 
     case 'SET_FOLDERS':
       return { ...state, folders: action.folders }
+
+    case 'SET_PROJECTS':
+      return { ...state, projects: action.projects }
 
     case 'LOAD_BOARD_STATE':
       return { 
@@ -224,13 +228,14 @@ export function CanvasProvider({ children }) {
     triggerSave,
     loadFromLocal,
     registerFlowInstance,
-    saveBoardToServer: async (overrideName, overrideFolderId) => {
+    saveBoardToServer: async (overrideName, overrideFolderId, overrideProjectId) => {
       const nodes = flowInstanceRef.current?.getNodes() || []
       const edges = flowInstanceRef.current?.getEdges() || []
       const payload = {
         id: state.boardId,
         name: overrideName || state.boardName,
         folderId: overrideFolderId !== undefined ? overrideFolderId : state.folderId,
+        projectId: overrideProjectId !== undefined ? overrideProjectId : state.projectId,
         nodes: nodes,
         edges: edges,
         createdAt: new Date().toISOString()
@@ -275,6 +280,31 @@ export function CanvasProvider({ children }) {
       if (flowInstanceRef.current?.setEdges) flowInstanceRef.current.setEdges([])
       localforage.removeItem('poppyai_canvas')
     },
+    fetchProjectsFromServer: async () => {
+      try {
+        const res = await apiFetch('/api/v1/projects')
+        if (res.ok) dispatch({ type: 'SET_PROJECTS', projects: await res.json() })
+      } catch (err) {
+        console.error('Failed to fetch projects:', err)
+      }
+    },
+    createProject: async (name) => {
+      const res = await apiFetch('/api/v1/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error || 'Could not create the project')
+      }
+      const project = await res.json()
+      // Refresh so the new project is selectable straight away.
+      const list = await apiFetch('/api/v1/projects')
+      if (list.ok) dispatch({ type: 'SET_PROJECTS', projects: await list.json() })
+      return project
+    },
+
     // Folder API wrappers
     fetchFoldersFromServer: async () => {
       try {
@@ -311,6 +341,7 @@ export function CanvasProvider({ children }) {
   // Effect to load boards and folders on mount
   React.useEffect(() => {
     value.fetchBoardsFromServer()
+    value.fetchProjectsFromServer()
     value.fetchFoldersFromServer()
   }, [])
 
