@@ -25,6 +25,10 @@ export default function AppShell({
   nodeCount = 0, edgeCount = 0,
   onOpenBoard, onRenameBoard,
   children,
+  // Rendered as a sibling of the canvas inside the flex row, so it sits to the
+  // RIGHT of the canvas. Passing it as a child would nest it in the canvas
+  // column and stack it underneath instead.
+  rightPanel,
 }) {
   const { dispatch } = useCanvas()
   const [theme, setTheme] = useState(() => localStorage.getItem(THEME_KEY) ?? '')
@@ -140,6 +144,8 @@ export default function AppShell({
         </div>
 
         <div className="cl-canvas-region">{children}</div>
+
+        {rightPanel}
       </div>
     </div>
   )

@@ -473,6 +473,7 @@ function CanvasApp() {
       edgeCount={edges.length}
       onOpenBoard={(b) => loadBoardFromServer(b.id)}
       onRenameBoard={(name) => saveBoardToServer(name, state.folderId)}
+      rightPanel={<PromptPanel onSpawnLensNode={handleSpawnLensNode} />}
     >
       <div className="app-main">
         <Toolbar 
@@ -656,8 +657,6 @@ function CanvasApp() {
         )}
       </div>
     </div>
-
-    <PromptPanel onSpawnLensNode={handleSpawnLensNode} />
     </AppShell>
   )
 }
