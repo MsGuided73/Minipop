@@ -145,18 +145,19 @@ export default function AppShell({
           </button>
         </nav>
 
-        <div className={explorerOpen ? '' : 'cl-explorer-hidden'}>
-          {explorerOpen && (
-            <WorkspaceExplorer
-              boards={boards}
-              folders={folders}
-              projects={projects}
-              currentBoardId={currentBoardId}
-              onOpenBoard={onOpenBoard}
-              onNewCanvas={onNewCanvas}
-            />
-          )}
-        </div>
+        {/* Rendered directly into the flex row, with no wrapper. A plain div
+            here breaks the height chain: the explorer would size to its content
+            instead of the row, and its tree could never scroll. */}
+        {explorerOpen && (
+          <WorkspaceExplorer
+            boards={boards}
+            folders={folders}
+            projects={projects}
+            currentBoardId={currentBoardId}
+            onOpenBoard={onOpenBoard}
+            onNewCanvas={onNewCanvas}
+          />
+        )}
 
         <div className="cl-canvas-region">{children}</div>
 
