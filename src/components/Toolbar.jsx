@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Bot, Type, Globe, Image, Youtube, FileText, Trash2, Settings, Download, Upload, Plus, ChevronDown, Zap, UserSquare, Sun, Moon, Wand2, Mic, GitCompare, Layers, Eye, Cpu, Check, Infinity as InfinityIcon } from 'lucide-react'
+import { Bot, Type, Globe, Image, Youtube, FileText, Trash2, Settings, Download, Upload, Plus, ChevronDown, Zap, UserSquare, Sun, Moon, Wand2, Mic, GitCompare, Layers, Eye, Cpu, Check, FilePlus, Save, Infinity as InfinityIcon } from 'lucide-react'
 import { useCanvas } from '../context/CanvasContext'
 import { MODELS, modelLabel } from '../constants/models'
 import './Toolbar.css'
@@ -20,7 +20,7 @@ const nodeTypes = [
   { type: 'voiceAgentNode', label: 'Voice Agent', icon: Mic, color: '#fb923c', desc: 'Live Gemini Voice Call' },
 ]
 
-export default function Toolbar({ onAddNode, theme, onToggleTheme }) {
+export default function Toolbar({ onAddNode, theme, onToggleTheme, onNewCanvas, onSaveCanvas, isSaving, isDirty }) {
   const { state, dispatch } = useCanvas()
   const [addMenuOpen, setAddMenuOpen] = useState(false)
   const [modelMenuOpen, setModelMenuOpen] = useState(false)
@@ -132,6 +132,23 @@ export default function Toolbar({ onAddNode, theme, onToggleTheme }) {
           <span className="toolbar-stat-num">{(state.edges || []).length}</span> connections
         </span>
       </div>
+
+      <div className="toolbar-divider" />
+
+      {/* New canvas + save. Save is the one control here worth an accent fill:
+          unsaved work is the only state in this bar the user can lose. */}
+      <button className="toolbar-btn" onClick={onNewCanvas} title="New canvas">
+        <FilePlus size={15} />
+      </button>
+      <button
+        className={`toolbar-btn toolbar-save ${isDirty ? 'is-dirty' : ''}`}
+        onClick={onSaveCanvas}
+        disabled={isSaving}
+        title={isDirty ? 'Unsaved changes — save to your account' : 'Saved to your account'}
+      >
+        {isDirty ? <Save size={15} /> : <Check size={15} />}
+        <span className="toolbar-save-label">{isSaving ? 'Saving…' : isDirty ? 'Save' : 'Saved'}</span>
+      </button>
 
       <div className="toolbar-divider" />
 
