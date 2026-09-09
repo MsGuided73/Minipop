@@ -162,8 +162,26 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Serve static files from React build (dist)
-app.use(express.static(path.join(__dirname, 'dist')));
+// Serve static files from React build (dist).
+//
+// index.html must NEVER be cached. Vite fingerprints every asset, so the only
+// thing pointing at the current build is this file — if a browser serves it
+// from cache it keeps loading the previous bundle and new work appears to have
+// vanished. That cost real debugging time: the server was serving an updated
+// Save button while the browser kept rendering a stale page.
+//
+// The fingerprinted assets are the opposite case: their names change whenever
+// their contents do, so they are safe to cache hard and forever.
+app.use(express.static(path.join(__dirname, 'dist'), {
+  etag: true,
+  setHeaders(res, filePath) {
+    if (filePath.endsWith('index.html')) {
+      res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+    } else if (/[.-][A-Za-z0-9_-]{8,}\.(js|css|woff2?|png|jpg|svg)$/.test(filePath)) {
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    }
+  },
+}));
 
 /**
  * YouTube Data API
@@ -613,6 +631,9 @@ app.post('/api/v1/boards/:id/query', requireAuth, async (req, res) => {
 app.get(/.*/, (req, res) => {
   const indexPath = path.join(__dirname, 'dist', 'index.html');
   if (fs.existsSync(indexPath)) {
+    // Same rule as the static handler: this route also hands out index.html,
+    // so it needs the same no-cache header or deep links serve a stale bundle.
+    res.setHeader('Cache-Control', 'no-cache, must-revalidate');
     res.sendFile(indexPath);
   } else {
     res.status(404).send(`
