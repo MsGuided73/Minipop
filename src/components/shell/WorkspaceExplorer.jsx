@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react'
-import { ChevronRight, Folder, FileText, Package } from 'lucide-react'
+import { ChevronRight, Folder, FileText, Package, Plus } from 'lucide-react'
 
 /**
  * The file-explorer workspace tree.
@@ -18,6 +18,7 @@ export default function WorkspaceExplorer({
   projects = [],
   currentBoardId,
   onOpenBoard,
+  onNewCanvas,
 }) {
   const [grouping, setGrouping] = useState('subjects')
   const [openIds, setOpenIds] = useState(() => new Set())
@@ -63,7 +64,12 @@ export default function WorkspaceExplorer({
   return (
     <aside className="cl-explorer" aria-label="Workspace">
       <div className="cl-explorer-head">
-        <span className="cl-label">Workspace</span>
+        <div className="cl-explorer-title">
+          <span className="cl-label" style={{ marginBottom: 0 }}>Workspace</span>
+          <button className="cl-new-btn" onClick={onNewCanvas} title="New canvas">
+            <Plus size={12} /> New
+          </button>
+        </div>
         <div className="cl-seg" role="tablist">
           <button
             role="tab"

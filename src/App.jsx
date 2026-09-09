@@ -60,11 +60,50 @@ const EDGE_TYPES = {
 }
 
 function CanvasApp() {
-  const { state, dispatch, addNode, triggerSave, loadFromLocal, registerFlowInstance, loadBoardFromServer, saveBoardToServer } = useCanvas()
+  const { state, dispatch, addNode, triggerSave, loadFromLocal, registerFlowInstance, loadBoardFromServer, saveBoardToServer, clearCanvas, setBoardInfo, fetchBoardsFromServer } = useCanvas()
   const [nodes, setNodes, onNodesChange] = useNodesState(state.nodes || [])
   const [edges, setEdges, onEdgesChange] = useEdgesState(state.edges || [])
   const [isDraggingOver, setIsDraggingOver] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(true)
+
+  const [isSaving, setIsSaving] = useState(false)
+  // Dirty = the canvas changed since the last successful server save. Local
+  // autosave still runs; this only tracks whether the account copy is current.
+  const [isDirty, setIsDirty] = useState(false)
+
+  // Any edit to the graph marks the board unsaved — positions, additions and
+  // deletions all flow through these two arrays.
+  useEffect(() => { setIsDirty(true) }, [nodes, edges])
+
+  const handleNewCanvas = useCallback(() => {
+    if (isDirty && nodes.length > 0 &&
+        !window.confirm('This canvas has unsaved changes. Start a new one anyway?')) return
+    clearCanvas()
+    setBoardInfo('Untitled Canvas', crypto.randomUUID(), null)
+    setIsDirty(false)
+  }, [isDirty, nodes.length, clearCanvas, setBoardInfo])
+
+  const handleSaveCanvas = useCallback(async () => {
+    setIsSaving(true)
+    try {
+      let name = state.boardName
+      if (!name || name === 'Untitled Board' || name === 'Untitled Canvas') {
+        const entered = window.prompt('Name this canvas:', 'New Canvas')
+        if (!entered) return                    // cancelled — leave it dirty
+        name = entered.trim()
+        setBoardInfo(name, state.boardId, state.folderId)
+      }
+      await saveBoardToServer(name, state.folderId)
+      await fetchBoardsFromServer()             // so the tree shows it immediately
+      setIsDirty(false)
+    } catch (err) {
+      // Never swallow a failed save: the user must know the account copy is
+      // stale, or they close the tab believing the work is safe.
+      window.alert('Could not save this canvas. ' + err.message)
+    } finally {
+      setIsSaving(false)
+    }
+  }, [state.boardName, state.boardId, state.folderId, saveBoardToServer, setBoardInfo, fetchBoardsFromServer])
   const [showMiniMap, setShowMiniMap] = useState(false)
   const [theme, setTheme] = useState(() => localStorage.getItem('contentloom-theme') || 'dark')
   const [contextMenu, setContextMenu] = useState(null)
@@ -473,6 +512,10 @@ function CanvasApp() {
       edgeCount={edges.length}
       onOpenBoard={(b) => loadBoardFromServer(b.id)}
       onRenameBoard={(name) => saveBoardToServer(name, state.folderId)}
+      onNewCanvas={handleNewCanvas}
+      onSaveCanvas={handleSaveCanvas}
+      isSaving={isSaving}
+      isDirty={isDirty}
       rightPanel={<PromptPanel onSpawnLensNode={handleSpawnLensNode} />}
     >
       <div className="app-main">

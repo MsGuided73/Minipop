@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { LayoutGrid, Search, Map, ArrowLeftRight, Settings as SettingsIcon } from 'lucide-react'
+import { LayoutGrid, Search, Map, ArrowLeftRight, Settings as SettingsIcon, Plus, Save, Check } from 'lucide-react'
 import { useCanvas } from '../../context/CanvasContext'
 import WorkspaceExplorer from './WorkspaceExplorer'
 import './AppShell.css'
@@ -24,6 +24,8 @@ export default function AppShell({
   currentBoardId, boardName,
   nodeCount = 0, edgeCount = 0,
   onOpenBoard, onRenameBoard,
+  onNewCanvas, onSaveCanvas,
+  isSaving = false, isDirty = false, lastSavedAt = null,
   children,
   // Rendered as a sibling of the canvas inside the flex row, so it sits to the
   // RIGHT of the canvas. Passing it as a child would nest it in the canvas
@@ -88,6 +90,18 @@ export default function AppShell({
           {edgeCount === 1 ? 'connection' : 'connections'}
         </span>
 
+        {/* Saving to the server is explicit. Local autosave keeps the canvas
+            safe between saves, but only this writes it to your account. */}
+        <button
+          className={`cl-save-btn ${isDirty ? 'is-dirty' : ''}`}
+          onClick={onSaveCanvas}
+          disabled={isSaving}
+          title={isDirty ? 'Unsaved changes — save to your account' : 'Save canvas'}
+        >
+          {isSaving ? <Save size={13} className="cl-spin" /> : isDirty ? <Save size={13} /> : <Check size={13} />}
+          {isSaving ? 'Saving…' : isDirty ? 'Save' : 'Saved'}
+        </button>
+
         <select
           className="cl-theme-select"
           value={theme}
@@ -139,6 +153,7 @@ export default function AppShell({
               projects={projects}
               currentBoardId={currentBoardId}
               onOpenBoard={onOpenBoard}
+              onNewCanvas={onNewCanvas}
             />
           )}
         </div>
