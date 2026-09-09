@@ -1,0 +1,127 @@
+/* Full-height reader drawer. Ported from the Node Redesign mockup.
+ * --rc is the node's identity hue, set per-open by the component. */
+
+.cl-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(6, 9, 12, .5);
+  opacity: 0; pointer-events: none;
+  transition: opacity .2s ease;
+  z-index: 40;
+}
+.cl-backdrop.on { opacity: 1; pointer-events: auto; }
+
+.cl-reader {
+  position: fixed; top: 0; right: 0; bottom: 0;
+  width: min(680px, 100vw);
+  background: var(--reader-bg);
+  border-left: 1px solid var(--line);
+  box-shadow: var(--shadow-overlay);
+  transform: translateX(102%);
+  transition: transform .25s var(--ease-panel);
+  z-index: 50;
+  display: flex; flex-direction: column;
+  font-family: var(--font-ui);
+}
+.cl-reader.on { transform: translateX(0); }
+
+.cl-reader-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 22px 12px;
+  border-bottom: 1px solid var(--line-soft);
+  flex: none;
+}
+.cl-reader-type {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 10.5px; font-weight: 700; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--rc, var(--accent));
+  white-space: nowrap;
+}
+.cl-reader-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--rc, var(--accent)); flex: none; }
+.cl-reader-src {
+  color: var(--faint); font-size: 12px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  flex: 1; min-width: 0;
+}
+.cl-reader-ctl { display: flex; align-items: center; gap: 4px; flex: none; }
+.cl-ctl-btn {
+  min-width: 30px; min-height: 30px; border-radius: var(--r-control);
+  display: inline-grid; place-items: center;
+  color: var(--muted); font-size: 12px; font-weight: 600;
+  border: 1px solid transparent; background: none; cursor: pointer;
+  transition: background var(--t-hover) ease, color var(--t-hover) ease;
+}
+.cl-ctl-btn:hover { background: var(--panel-2); color: var(--ink); }
+
+.cl-reader-scroll { flex: 1; overflow-y: auto; }
+
+.cl-doc {
+  max-width: 62ch; margin: 0 auto;
+  padding: 30px 28px 48px;
+  font-family: var(--font-reader);
+  font-size: var(--doc-size, 15.5px);
+  line-height: 1.68;
+  color: var(--reader-ink);
+}
+.cl-doc h1, .cl-doc h2, .cl-doc h3, .cl-doc h4 {
+  font-family: var(--font-display);
+  line-height: 1.25; text-wrap: balance; color: var(--ink);
+}
+.cl-doc h1 { font-size: 1.72em; font-weight: 700; margin: .2em 0 .7em; }
+.cl-doc h2 {
+  font-size: 1.28em; font-weight: 600; margin: 1.7em 0 .55em;
+  padding-top: .9em; border-top: 1px solid var(--line-soft);
+}
+.cl-doc h3 { font-size: 1.1em; font-weight: 600; margin: 1.4em 0 .4em; }
+.cl-doc h4 {
+  font-size: 1em; font-weight: 600; margin: 1.2em 0 .35em;
+  color: color-mix(in srgb, var(--rc, var(--accent)) 75%, var(--ink));
+}
+.cl-doc p { margin: .65em 0; }
+.cl-doc ul, .cl-doc ol { margin: .5em 0; padding-left: 1.35em; }
+.cl-doc li { margin: .3em 0; }
+.cl-doc li::marker { color: var(--rc, var(--accent)); }
+.cl-doc blockquote {
+  margin: 1em 0; padding: .6em 1.1em;
+  border-left: 3px solid var(--rc, var(--accent));
+  background: color-mix(in srgb, var(--rc, var(--accent)) 7%, transparent);
+  border-radius: 0 8px 8px 0;
+  font-style: italic;
+}
+.cl-doc blockquote p { margin: .2em 0; }
+.cl-doc hr { border: none; border-top: 1px solid var(--line-soft); margin: 1.6em 0; }
+.cl-doc strong { font-weight: 700; color: var(--ink); }
+.cl-doc code {
+  font-family: ui-monospace, "JetBrains Mono", monospace;
+  font-size: .88em; background: var(--panel-2);
+  padding: 1px 5px; border-radius: 4px; color: var(--c-guide);
+}
+.cl-doc-end {
+  text-align: center; color: var(--faint); letter-spacing: .5em;
+  font-family: var(--font-ui); font-size: 12px; margin-top: 2.2em;
+}
+
+.cl-reader-foot {
+  flex: none;
+  display: flex; gap: 9px; align-items: center;
+  padding: 12px 22px 14px;
+  border-top: 1px solid var(--line-soft);
+  background: var(--panel);
+}
+.cl-followup {
+  flex: 1;
+  background: var(--panel-2); border: 1px solid var(--line);
+  border-radius: 8px; padding: 9px 13px;
+  color: var(--ink); font: inherit;
+}
+.cl-followup::placeholder { color: var(--faint); }
+.cl-followup:disabled { opacity: .6; }
+.cl-send {
+  min-height: 36px; padding: 0 15px; border-radius: 8px;
+  background: var(--accent); color: var(--accent-ink);
+  font-weight: 600; font-size: 13px; border: none; cursor: pointer;
+}
+.cl-send:disabled { opacity: .5; cursor: default; }
+
+.cl-reader-empty {
+  padding: 40px 28px; color: var(--faint); font-size: 13px; text-align: center;
+}
