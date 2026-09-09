@@ -1,0 +1,194 @@
+/* ContentLoom design tokens — v1.0, September 2026, dark-first.
+ *
+ * Ported verbatim from the "ContentLoom Design Schema" artifact. Every value
+ * here is a token; nothing in the app should hard-code a color, or light mode
+ * regresses the moment someone forgets.
+ *
+ * Bare :root carries DARK. Light is a sibling palette with the same roles —
+ * not an inversion — applied by prefers-color-scheme or [data-theme="light"].
+ *
+ * The legacy-* themes preserve the current app's teal-and-orange look so the
+ * two can be compared side by side while the redesign lands.
+ */
+
+:root {
+  color-scheme: dark;
+
+  /* ground & surfaces */
+  --ground: #12161d;
+  --ground-2: #0e1218;
+  --dot: #232d36;
+  --panel: #1a2129;
+  --panel-2: #212a32;
+  --line: #2c3740;
+  --line-soft: #232c34;
+  --reader-bg: #171d24;
+  --reader-ink: #e4e9e7;
+
+  /* text — contrast ratios noted in the schema */
+  --ink: #e9edec;      /* 15.4:1 */
+  --muted: #9aa8a5;    /* 7.4:1  */
+  --faint: #7d8c89;    /* ≥4.6:1 — raised from #6d7c79, which failed AA */
+
+  /* accent + node identity. Orange means "origin" everywhere. */
+  --accent: #e8853d;
+  --accent-deep: #c96a28;
+  --accent-ink: #1a1208;
+  --c-source: #e8853d;
+  --c-script: #d9708f;
+  --c-guide: #4fb8a2;
+  --c-notes: #d9b44a;
+
+  /* semantic — same hues as node types, but these mean STATE, never decoration */
+  --ok: #4fb8a2;
+  --warn: #d9b44a;
+  --err: #d9708f;
+
+  /* radius */
+  --r-control: 6px;
+  --r-card: 10px;
+  --r-panel: 14px;
+  --r-pill: 999px;
+
+  /* elevation — two levels only */
+  --shadow-card: 0 4px 16px rgba(0, 0, 0, .35);
+  --shadow-overlay: 0 12px 34px rgba(0, 0, 0, .5);
+
+  /* motion */
+  --ease-panel: cubic-bezier(.3, .9, .3, 1);
+  --t-hover: 150ms;
+  --t-panel: 240ms;
+
+  /* type */
+  --font-display: "Fraunces", Georgia, serif;
+  --font-ui: "Instrument Sans", system-ui, -apple-system, sans-serif;
+  --font-reader: "Source Serif 4", Georgia, serif;
+}
+
+/* Light is the same roles in a different key, not an inversion. */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    color-scheme: light;
+    --ground: #eef0ec;
+    --ground-2: #e6e9e4;
+    --dot: #d9ded7;
+    --panel: #ffffff;
+    --panel-2: #f4f6f2;
+    --line: #d5dcd5;
+    --line-soft: #e2e7e0;
+    --reader-bg: #fbfcfa;
+    --reader-ink: #26332f;
+    --ink: #22302e;
+    --muted: #5c6b68;
+    --faint: #8a9793;
+    --accent: #cf6a24;
+    --accent-deep: #b45a1c;
+    --accent-ink: #ffffff;
+    --c-source: #c76a20;
+    --c-script: #b8496f;
+    --c-guide: #1f8a75;
+    --c-notes: #a1801c;
+    --ok: #1f8a75;
+    --warn: #a1801c;
+    --err: #b8496f;
+    --shadow-card: 0 4px 14px rgba(40, 50, 46, .10);
+    --shadow-overlay: 0 10px 30px rgba(40, 50, 46, .18);
+  }
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --ground: #eef0ec;
+  --ground-2: #e6e9e4;
+  --dot: #d9ded7;
+  --panel: #ffffff;
+  --panel-2: #f4f6f2;
+  --line: #d5dcd5;
+  --line-soft: #e2e7e0;
+  --reader-bg: #fbfcfa;
+  --reader-ink: #26332f;
+  --ink: #22302e;
+  --muted: #5c6b68;
+  --faint: #8a9793;
+  --accent: #cf6a24;
+  --accent-deep: #b45a1c;
+  --accent-ink: #ffffff;
+  --c-source: #c76a20;
+  --c-script: #b8496f;
+  --c-guide: #1f8a75;
+  --c-notes: #a1801c;
+  --ok: #1f8a75;
+  --warn: #a1801c;
+  --err: #b8496f;
+  --shadow-card: 0 4px 14px rgba(40, 50, 46, .10);
+  --shadow-overlay: 0 10px 30px rgba(40, 50, 46, .18);
+}
+
+:root[data-theme="dark"] { color-scheme: dark; }
+
+/* ── Legacy themes ──────────────────────────────────────────────────────────
+ * The current live app's palette, kept selectable so the redesign can be
+ * judged against what it replaces. Delete once the new look is settled.
+ */
+:root[data-theme="legacy-dark"] {
+  color-scheme: dark;
+  --ground: #13141c; --ground-2: #0f1017; --dot: #232a35;
+  --panel: #2f3e3e; --panel-2: #3a4b4a;
+  --line: #465c5b; --line-soft: #3c4d4c;
+  --ink: #e6ecea; --muted: #a3b2b1; --faint: #8a9997;
+  --accent: #e8853d; --accent-deep: #c96a28; --accent-ink: #1a1208;
+  --c-source: #e8853d; --c-script: #d9708f; --c-guide: #7fd0be; --c-notes: #d9b44a;
+  --ok: #7fd0be; --warn: #d9b44a; --err: #d9708f;
+  --reader-bg: #263231; --reader-ink: #dfe7e4;
+}
+
+:root[data-theme="legacy-light"] {
+  color-scheme: light;
+  --ground: #e9e8e0; --ground-2: #dcdbd2; --dot: #d2d3c9;
+  --panel: #f4f3ec; --panel-2: #e6e7de;
+  --line: #c7cbc0; --line-soft: #d8dbd1;
+  --ink: #2b3433; --muted: #5f6f6c; --faint: #84908c;
+  --accent: #df7a2f; --accent-deep: #c2651f; --accent-ink: #ffffff;
+  --c-source: #c76a20; --c-script: #b8496f; --c-guide: #1f8a75; --c-notes: #a1801c;
+  --ok: #1f8a75; --warn: #a1801c; --err: #b8496f;
+  --reader-bg: #f9f8f2; --reader-ink: #2e3936;
+  --shadow-card: 0 4px 14px rgba(40, 50, 46, .10);
+  --shadow-overlay: 0 10px 30px rgba(40, 50, 46, .18);
+}
+
+/* ── Bridge to the legacy variable names ────────────────────────────────────
+ * The existing components reference --bg-*, --text-*, --border-*, --accent-*.
+ * Mapping them onto the new tokens means the whole app adopts the palette
+ * immediately, without touching 3,100 lines of CSS in one commit. Components
+ * get migrated to the real token names as each one is redesigned.
+ */
+:root {
+  --bg-base: var(--ground);
+  --bg-surface: var(--panel);
+  --bg-elevated: var(--panel);
+  --bg-card: var(--panel-2);
+  --bg-hover: var(--panel-2);
+
+  --accent-primary: var(--accent);
+  --accent-secondary: var(--accent-deep);
+  --accent-glow: color-mix(in srgb, var(--accent) 35%, transparent);
+  --accent-subtle: color-mix(in srgb, var(--accent) 12%, transparent);
+  --accent-danger: var(--err);
+  --accent-success: var(--ok);
+
+  --text-primary: var(--ink);
+  --text-secondary: var(--muted);
+  --text-muted: var(--faint);
+  --text-inverse: var(--accent-ink);
+
+  --border-subtle: var(--line-soft);
+  --border-default: var(--line);
+  --border-accent: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: .01ms !important;
+    animation-duration: .01ms !important;
+  }
+}

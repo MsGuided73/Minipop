@@ -14,6 +14,7 @@ import '@xyflow/react/dist/style.css'
 
 import { CanvasProvider, useCanvas } from './context/CanvasContext'
 import Sidebar from './components/Sidebar'
+import AppShell from './components/shell/AppShell'
 import Toolbar from './components/Toolbar'
 import Settings from './components/Settings'
 import PromptPanel from './components/PromptPanel'
@@ -59,7 +60,7 @@ const EDGE_TYPES = {
 }
 
 function CanvasApp() {
-  const { state, dispatch, addNode, triggerSave, loadFromLocal, registerFlowInstance } = useCanvas()
+  const { state, dispatch, addNode, triggerSave, loadFromLocal, registerFlowInstance, loadBoardFromServer, saveBoardToServer } = useCanvas()
   const [nodes, setNodes, onNodesChange] = useNodesState(state.nodes || [])
   const [edges, setEdges, onEdgesChange] = useEdgesState(state.edges || [])
   const [isDraggingOver, setIsDraggingOver] = useState(false)
@@ -462,9 +463,17 @@ function CanvasApp() {
   }, [setNodes])
 
   return (
-    <div className="app-root flex-row">
-      <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
-      
+    <AppShell
+      boards={state.remoteBoards}
+      folders={state.folders}
+      projects={state.projects || []}
+      currentBoardId={state.boardId}
+      boardName={state.boardName}
+      nodeCount={nodes.length}
+      edgeCount={edges.length}
+      onOpenBoard={(b) => loadBoardFromServer(b.id)}
+      onRenameBoard={(name) => saveBoardToServer(name, state.folderId)}
+    >
       <div className="app-main">
         <Toolbar 
           onAddNode={(type) => handleAddNode(type)} 
@@ -649,7 +658,7 @@ function CanvasApp() {
     </div>
 
     <PromptPanel onSpawnLensNode={handleSpawnLensNode} />
-    </div>
+    </AppShell>
   )
 }
 
