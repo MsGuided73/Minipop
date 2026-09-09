@@ -1,6 +1,6 @@
 # ContentLoom — Handoff
 
-Last updated: 2026-09-09 · branch `main` @ `50ab4ab`+
+Last updated: 2026-09-09 · branch `main` @ `9ef0ba2`
 
 ---
 
@@ -40,7 +40,7 @@ Redesign". The schema is the source of truth for every color, font and scale.
 | Piece | State |
 |---|---|
 | Design tokens, 3 fonts, light/dark/legacy themes | done |
-| Topbar, icon rail, workspace explorer | built — **topbar not rendering, see §4** |
+| Topbar, icon rail, workspace explorer | done — New + Save live in the topbar |
 | Projects dimension (`pop_projects` + `project_id`) | schema done, no UI to populate it |
 | Markdown renderer (XSS-safe, 16 tests) | done |
 | Node identity (type → hue) | done |
@@ -73,8 +73,8 @@ Added to the task list below.
 
 **~~The new topbar renders at zero height~~ — RESOLVED.** It was never broken.
 DevTools showed the header present with every child and a computed height of
-51px; the browser had been serving a cached  that pinned the app to
-an older bundle. Fixed by sending  for index.html (a9191ed). Three
+51px; the browser had been serving a cached `index.html` that pinned the app to
+an older bundle. Fixed by sending `Cache-Control: no-cache` for it (a9191ed). Three
 earlier attempts to fix this as a CSS/layout bug were chasing a ghost — when a
 change is verifiably in the served bundle but not on screen, suspect caching
 before rewriting the code.
@@ -107,11 +107,9 @@ Ordered by value.
 6. **Project UI** — create projects, assign boards. The column exists; nothing
    can populate it.
 7. **Settings redesign** — provider cards, workspace-level prompt defaults.
-8. **Merge Toolbar into the topbar** — the mockup has one bar, not a pill plus
-   a header.
-9. **Turn off public Supabase signups** — bot accounts were arriving daily
+8. **Turn off public Supabase signups** — bot accounts were arriving daily
    before the cleanup. Dashboard action, not code.
-10. **Dependency upgrades** — 14 vulnerabilities, all with non-breaking fixes
+9. **Dependency upgrades** — 14 vulnerabilities, all with non-breaking fixes
     (`npm audit fix`). React 19 / Vite 8 are separate, larger decisions.
 
 ---
