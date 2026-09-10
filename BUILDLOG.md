@@ -2,7 +2,7 @@
 
 A chronological record of what was built, why, and what it cost. Newest last.
 
-Range: `e7444a5` → `43cbb0a` · 19 commits · 50 files · +4,087 / −112 lines.
+Range: `e7444a5` → `3eb9459` · 23 commits · 59 files · +6,216 / −664 lines.
 
 Format per entry: what changed, why, and anything that would not be obvious
 from the diff. Mistakes are recorded alongside features — several of the most
@@ -286,15 +286,188 @@ scrollbar since there was no other cue the list continued.
 
 ---
 
+## 2026-09-09 → 09-10 — Redesign, phase 2: node cards, edges, the reader
+
+Four build-outs in one evening session. The order below is the order they were
+built, which is not the order they were committed — the edge work was split out
+in front so that each commit resolves its own imports.
+
+Range: `f1023c3` → `3eb9459` · 4 commits · 17 files · +2,129 / −552 lines.
+Tests 65 → 152.
+
+### 1 — `9eae793` Node cards and the document reader
+
+The task the session was opened to do. `LensNode` rendered a full chat inside
+the canvas node, so reading a long document meant fighting a 280px box.
+
+**The card.** 270px fixed width, sizing to its own content: type dot and
+uppercase label in the node's hue, status chip in the header, title, a
+three-line clamped preview, footer of `1 source · 3 sections` and `Read ⤢`.
+Fixed width is the point — legibility of the graph beats legibility of any one
+document, which is what the reader is for.
+
+**The reader had to be a portal.** React Flow transforms its viewport, and
+`position: fixed` inside a transformed ancestor resolves against that ancestor
+rather than the window. It mounts on `document.body`, and only once opened —
+then is held for the exit transition so the slide-in is not skipped.
+
+**The thread stays on the node.** The reader is a view over `data.messages`,
+and its follow-up composer posts back into the same thread — so there was no
+migration to do. With no follow-ups the document shown is exactly the
+assistant's answer; once a conversation exists the exchanges are appended
+*below* the document rather than replacing it. Replacing it would mean that
+asking "shorten section 3" makes the whole document vanish behind a three-line
+reply.
+
+**Supporting derivation.** `lib/docSummary.js` works out a card's title,
+preview and section count from the markdown, because nothing else knows what
+the document turned out to be. Fences are paired rather than toggled: one
+unclosed fence from a truncated response would otherwise blank the preview and
+report zero sections for a document the reader shows in full.
+
+**A document names its own node** on the first run, unless someone has renamed
+it by hand — `autoLabel` clears for good on a manual rename. Prompt tags now
+reach the node as well, because `identityFor` reads tags before titles; nodes
+saved earlier have no tags and fall back to title matching, which is why some
+older cards take the accent rather than a type hue.
+
+**Inventory before replacing.** The lesson from `cf12fdc` applied directly:
+everything the old node header carried survives behind a `⋯` menu — rename,
+view/edit prompt, copy transcript, save `.md`, re-run, clear, delete. Two things
+have no direct replacement and are recorded rather than quietly dropped:
+per-message copy, and find-in-conversation. The reader renders real DOM, so
+browser Ctrl+F now works on the document, and it carries its own A− / A+.
+
+> Caught in review: a failed follow-up was invisible. The error rendered only on
+> the card, which the reader's own backdrop covers, and the composer cleared the
+> typed question regardless of outcome — so a rate-limited follow-up lost the
+> question and said nothing. The error now shows inside the drawer and the text
+> survives.
+
+> Also caught: reopening the drawer inside the 260ms exit window let the stale
+> unmount timer tear down the drawer the user had just reopened; and the
+> outside-click that closes the `⋯` menu was a bubble-phase listener, which every
+> control on every card defeats by calling `stopPropagation` to keep clicks away
+> from React Flow. Capture phase now, and the timer is cancelled on open.
+
+**Old geometry is rewritten on load.** Nodes carrying the old
+`{width: 380, height: 460}` chat size are normalised to the card width on mount.
+This is a silent rewrite of saved data that discards any manual resize —
+accepted because `NodeResizer` is gone and the alternative is a card floating in
+a 460px invisible hit area, but it is the kind of change this project has been
+burned by before, so it is written down.
+
+`nodeIdentity` had been described in the handoff as "already written and
+tested". It had no test file. It does now.
+
+### 2 — `6ae92b0` Edges coloured by the node they feed
+
+An edge takes the hue of its **target's** identity, so reading down a canvas the
+arrow into a Video Script is rose the whole way and the graph's shape is legible
+at a zoom where no label is. Arrowheads come from one shared set of SVG
+`<marker>` defs, since marker references resolve by id across the document.
+`SemanticEdge` reads the target through a `useStore` selector returning just the
+identity key, so an edge re-renders only when the resolved identity changes, not
+on every node move.
+
+**The trap.** `src/index.css` styled `.react-flow__edge-path` with
+`stroke: var(--accent-primary) !important`, which silently beat the per-edge
+inline colour. Every edge rendered accent-orange while its arrowhead was
+correctly hued — and 129 passing tests said nothing about it. Paint is now the
+component's job; the stylesheet keeps only hover geometry, which still needs
+`!important` to beat the inline `stroke-width`.
+
+The same all-`!important` pattern is still on `.react-flow__handle`, so the card
+overrides it under `.cl-card`. Expect this whenever a redesigned component's
+colour "doesn't take".
+
+### 3 — `f98515f` A headless canvas preview
+
+A direct consequence of the above: the suite was green while the canvas was
+visibly wrong, and the app sits behind Supabase auth, so there was no quick way
+to look at it. `preview/cards.html` mounts the real `LensNode`, `SemanticEdge`
+and `EdgeMarkers` on a React Flow canvas with fixture data, outside `AuthGate`,
+and Chrome screenshots it headlessly. `?reader=1` opens the drawer, `?scroll=N`
+scrolls it, flipping `data-theme` checks light. Vite only builds `index.html`,
+so none of it ships.
+
+Throwaway scaffolding. Delete it when the redesign settles.
+
+### Interlude — the save failure that was not a bug
+
+Saving a canvas with a new project failed with "Could not create the project".
+No code was changed to fix it.
+
+The server answering on `:3000` had been running since **4:24 AM**; the projects
+API was committed at **10:55 AM** in `2653fea`. So `POST /api/v1/projects`
+genuinely did not exist in that process, and it returned express's HTML 404 —
+which `createProject` cannot parse as JSON, so it fell back to a generic message
+carrying no detail. A `GET` of the same path returned **200 HTML**, having fallen
+through to the SPA catch-all.
+
+What made it confusing: `express.static` reads `dist/` from disk per request, so
+that morning's process happily served the **new** frontend — the node cards were
+on screen — while answering with the **old** API. New dialog, old backend.
+
+Six orphaned `server.js` processes were holding ports 3000 and 3011–3015. That is
+also why an earlier `PORT=3011 npm run dev` had silently failed to bind its API
+port. All six were stopped and one clean server restarted.
+
+> Diagnosis worth keeping: the route *was* registered — dumping the express
+> router stack proved `POST /api/v1/projects` present, in the right order, and
+> matching the request path. Which meant the code was fine and the *process* was
+> stale. A fresh server on another port returned 401 where the old one returned
+> 404, and that single comparison localised it.
+
+### 4 — `3eb9459` The reader renders like Google Docs
+
+Requested directly, with a screenshot: a document should look the way markdown
+looks pasted into Google Docs. Two things were in the way, not one.
+
+**The renderer could not produce most of it.** Links, tables, fenced code,
+strikethrough, task items and nested numbering all fell through as raw text — a
+table collapsed into a single paragraph of pipes, a code block lost its newlines
+and kept its backticks. Nested lists were emitted as a `<ul>` *sibling* of
+`<li>`, which is invalid. `markdown.js` now covers links, images, lists nested to
+any depth, task lists, tables with column alignment, fenced code with a language
+class, strikethrough, and headings to `h6`.
+
+**It stays hand-rolled**, against its own earlier note to swap in a parser plus a
+sanitizer. The file escapes *before* formatting, so it can only ever emit its own
+tags with its own attributes — a stronger guarantee than parse-then-sanitize, and
+it needs no sanitizer at all. That property is worth more than a library; keep it
+if you extend the file. URLs are the one place input reaches an attribute, so
+they go through `safeUrl`: `javascript:`, `data:` and `vbscript:` drop to plain
+text, including the tab-separated `java<TAB>script:` form that browsers still
+execute, because they ignore control characters when resolving a scheme.
+
+**Then the styling.** Arial, 11pt body, 20/16/14/12pt bold headings, 1.38
+leading, a 6.5in column (an 8.5in page less its margins), dash bullets with
+hanging indents, ruled tables with a bold header row, blue underlined links. This
+is a deliberate departure from the Design Schema, which specifies Fraunces and
+Source Serif for the reader — recorded here so it does not read as drift later.
+
+The page follows the app theme rather than forcing white, which is what Google
+Docs does in dark mode; everything reads from `--reader-ink` / `--reader-bg`, so
+"always white" is a two-token change. The drawer's chrome keeps the node's
+identity hue and only the document body is neutral — that contrast is what makes
+it read as a document rather than as app furniture.
+
+> One of the 16 existing markdown tests asserted the invalid sibling-`<ul>`
+> markup. The test was codifying the bug, so it was corrected rather than
+> preserved. Markdown tests 16 → 39.
+
+---
+
 ## Where it ended
 
 | | |
 |---|---|
-| Tests | 65 across 7 files |
+| Tests | 152 across 10 files |
 | Live data | 174 boards · 9 folders · 24 prompts · 127 transcripts |
 | Security | JWT auth, RLS on 4 tables, RESTRICT on ownership FKs |
-| Redesign | phase 1 of 4 complete |
-| Open | node cards, reader wiring, colored edges, YouTube playback |
+| Redesign | phases 1-2 of 4 complete |
+| Open | YouTube playback, toolbar merge, `isDirty`, project UI, settings |
 
 See `HANDOFF.md` for current state and the task list.
 
@@ -313,3 +486,11 @@ See `HANDOFF.md` for current state and the task list.
 6. **This repo is CRLF.** `\n` anchors fail silently.
 7. **A silent downgrade is worse than an error.** The transcript fallback and the
    empty backup both "succeeded" while doing nothing useful.
+8. **A green test suite says nothing about how it looks.** 129 tests passed
+   while every edge on the canvas was the wrong colour; the override that broke
+   it was `!important` in a stylesheet no test renders.
+9. **`position: fixed` does not escape a transformed ancestor.** Anything fixed
+   inside a React Flow node positions against the canvas. Portal it to the body.
+10. **Suspect the running process, not only the cache.** A server from six hours
+   earlier served the new frontend from disk while answering with its own stale
+   routes — so the UI was current and the API was not.

@@ -1,6 +1,6 @@
 # ContentLoom — Handoff
 
-Last updated: 2026-09-09 · `main` @ `f9b2e2b` · 18 commits this session
+Last updated: 2026-09-09 · `main` @ `f1023c3` · node cards + reader landed
 
 ---
 
@@ -51,39 +51,81 @@ already ported to `src/styles/tokens.css`.
 | Save dialog: suggested name, subject, project | done |
 | Projects (`pop_projects`, `project_id`, GET/POST API) | done — no UI to manage projects outside the save dialog |
 | Board filing — 171/174 into 7 subjects | done |
-| Markdown renderer (XSS-safe, 16 tests) | done, **unused** |
-| Node identity (type → hue) | done, **unused** |
-| `DocumentReader` drawer | built, **not wired to anything** |
-| Node cards + colored edges | **not started** |
+| Markdown renderer (XSS-safe, 39 tests) | done — headings, links, images, nested/task lists, tables, fenced code |
+| Node identity (type → hue) | done — sets card and edge colour (17 tests) |
+| `DocumentReader` drawer | done — opened by a Lens card's Read button |
+| Node cards + colored edges | done — §3 |
 | In-canvas YouTube player | **not started — §4** |
 | Settings: provider cards, prompt defaults | not started |
 
 ---
 
-## 3. Next task, in detail
+## 3. Node cards + the reader — done
 
-**Node cards + wire the reader.** These are one job; the card's Read button
-needs somewhere to open.
+`LensNode` is a 270px card: type dot and uppercase label in the node's hue,
+status chip in the header, title, a 3-line clamped preview, and a footer of
+`1 source · 3 sections` plus `Read ⤢`. Read opens `DocumentReader` in a portal
+on `document.body` — React Flow transforms its viewport, and `position: fixed`
+inside a transformed ancestor resolves against that ancestor, not the window.
 
-`src/nodes/LensNode.jsx` (533 lines) currently renders a full chat inside the
-node. The mockup replaces that with a compact card:
+The thread stays on the node. The reader is a view over it, and its follow-up
+composer posts back into the same thread.
 
-- type dot + uppercase label in the node's hue (`lib/nodeIdentity.js` maps a
-  prompt to its hue — already written and tested)
-- status chip (`✓ Complete`) in the header, never inside the document
-- title, then a 3-line clamped preview
-- footer: `1 source · 8 steps` on the left, `Read ⤢` on the right
-- 270px wide, `--r-card` radius, hover lifts 2px and warms the border
+**Decisions worth knowing:**
 
-Read opens `components/reader/DocumentReader` (built, unused) with the last
-assistant message as markdown. Keep the thread on the node as the source of
-truth — the reader is a *view*, so there is no migration. The reader's
-follow-up composer posts back into that same thread.
+- **The reader shows the thread, not just the last message.** With no
+  follow-ups that is identical to "the last assistant message". Once a
+  conversation has happened, the exchanges are appended under the document
+  rather than replacing it — otherwise asking "shorten section 3" makes the
+  whole document disappear behind a three-line reply.
+- **A document names its own node.** On the first run, if the document opens
+  with a heading and nobody has renamed the node, the heading becomes the
+  label (`data.autoLabel`). Renaming by hand clears the flag for good.
+- **Prompt tags now reach the node** (`data.promptTags`), because
+  `identityFor` reads tags before titles. Nodes saved earlier have no tags and
+  fall back to title matching, which is why some older cards take the accent
+  rather than a type hue.
+- **Old lens nodes are resized on load.** They carry `{width: 380, height: 460}`
+  from the old chat layout; the card normalises that to `{width: 270}` on
+  mount. This is a silent rewrite of saved geometry, and it discards any manual
+  resize — accepted because `NodeResizer` is gone and the alternative is a card
+  floating in a 460px invisible hit area.
+- **Two things from the old chat node have no replacement:** per-message copy
+  (whole-document copy and `Copy transcript` remain) and find-in-conversation
+  (the reader renders real DOM, so browser Ctrl+F now works, and it has A−/A+).
 
-Then: edges colored by their target node's hue with arrowheads, per the mockup's
-`<marker>` defs.
+**The reader is styled as a Google Doc, on purpose.** This is a deliberate
+departure from the Design Schema, at the owner's request: markdown should look
+the way it looks pasted into Google Docs. So the document is Arial, not
+Fraunces/Source Serif — 11pt body, 20/16/14/12pt bold headings, 1.38 leading,
+dash bullets with hanging indents, ruled tables. The drawer's *chrome* (type
+label, dot, controls) still carries the node's identity hue; only the document
+body is neutral, which is what makes it read as a document rather than as part
+of the app.
 
-Everything needed exists. Nothing about this requires the previous session.
+The page follows the app theme rather than forcing white — Google Docs does the
+same in dark mode. Everything reads from `--reader-ink` / `--reader-bg`, so
+"always a white page" is a change to those two tokens, not to the rules.
+
+`src/lib/markdown.js` was rewritten for this: it now covers links (scheme-checked
+against `javascript:`), images, arbitrarily nested lists, task lists, tables with
+alignment, fenced code and strikethrough. It still escapes **before** formatting,
+so it emits only its own tags and needs no sanitizer — that property is worth
+more than any library, so keep it if you extend the file. The old renderer also
+emitted nested `<ul>` as a *sibling* of `<li>`, which was invalid; a test had
+codified that, and the test was wrong.
+
+**The trap that cost the most time here:** `src/index.css` styled
+`.react-flow__edge-path` with `stroke: var(--accent-primary) !important`, which
+silently beat the per-edge inline colour — every edge rendered accent-orange
+while its arrowhead was correctly hued. The same all-`!important` pattern is
+still on `.react-flow__handle`; the card overrides it under `.cl-card`. Expect
+this whenever a redesigned component's colour "doesn't take".
+
+Note also that `src/index.css` re-declares `--accent-primary`, `--bg-*` and
+friends in its own `:root` **after** importing `tokens.css`, so the legacy
+teal-and-copper values still win for those bridge names. Worth untangling
+before the next component is redesigned.
 
 ---
 
@@ -121,12 +163,18 @@ React 19 / Vite 8 are separate, larger decisions.
 **Public Supabase signups are open.** Bot accounts were arriving roughly daily
 before the cleanup. Dashboard action, not code.
 
+**No ESLint in the repo.** There is no config and no lint script, so
+`react-hooks/exhaustive-deps` is unenforced and the two disable comments in
+`LensNode` are unverifiable by tooling.
+
 ---
 
 ## 6. Task list
 
-1. **Node cards + wire the reader** (§3) — biggest remaining visual step
-2. **Colored edges with arrowheads**
+1. ~~Node cards + wire the reader~~ — done (§3)
+2. ~~Colored edges with arrowheads~~ — done. `SemanticEdge` reads the target
+   node's identity through a `useStore` selector and picks one of the shared
+   `<marker>` defs in `components/canvas/EdgeMarkers`
 3. **In-canvas YouTube playback + theater mode** (§4)
 4. **Merge the floating Toolbar into the topbar** — the mockup has one bar, not
    a pill plus a header; they currently duplicate node counts and branding
@@ -161,6 +209,21 @@ Each is idempotent, ends with a verification query, and documents its rollback.
 **Ownership audit.** `supabase/verify_ownership.sql` reports orphaned or
 misattributed rows. Run after anyone new signs in.
 
+**Looking at the canvas without signing in.** `preview/cards.html` mounts the
+real `LensNode`, `SemanticEdge` and `EdgeMarkers` on a React Flow canvas with
+fixture data, outside `AuthGate`. Throwaway scaffolding — delete it when the
+redesign settles.
+
+```
+npm run dev
+chrome --headless=new --disable-gpu --window-size=1400,900 \
+  --screenshot=out.png http://localhost:5173/preview/cards.html
+```
+
+Add `?reader=1` to open the reader drawer, or flip `data-theme` on the `<html>`
+tag to check light. This is how the edge-colour bug in §3 was found; a passing
+test suite said nothing about it.
+
 ---
 
 ## 8. Lessons that cost real time
@@ -183,3 +246,11 @@ misattributed rows. Run after anyone new signs in.
   functions before replacing it.
 - **A plain wrapper div breaks a flex height chain.** The workspace tree could
   not scroll because an unstyled div sat between it and the flex row.
+- **A green test suite says nothing about how it looks.** 129 tests passed
+  while every edge on the canvas was the wrong colour, because the override
+  that broke it was `!important` in a stylesheet no test renders. Screenshot
+  the thing (§7).
+- **`position: fixed` does not escape a transformed ancestor.** React Flow
+  transforms its viewport, so anything fixed inside a node — a drawer, a modal,
+  a tooltip — positions against the canvas instead of the window. Portal it to
+  `document.body`.
