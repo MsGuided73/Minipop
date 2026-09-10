@@ -13,6 +13,7 @@ import { createClient } from '@supabase/supabase-js';
 import { YoutubeTranscript } from 'youtube-transcript/dist/youtube-transcript.esm.js';
 import { ApifyClient } from 'apify-client';
 import { isStaticAssetPath, assetNotFoundBody } from './lib/staticAssets.js';
+import { isAllowedOrigin, parseAllowList } from './lib/corsOrigin.js';
 
 dotenv.config();
 
@@ -24,6 +25,12 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+
+// Behind Traefik, req.socket carries the PROXY address, not the visitor. Without
+// this every visitor shared one rate-limit bucket, so a few active users could
+// throttle each other. 1 = trust exactly one proxy hop, so a client cannot spoof
+// X-Forwarded-For to dodge the limit by appending to the chain.
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3000;
 
 // Initialize Supabase Client — degrade gracefully if not configured so PM2/systemd
@@ -60,22 +67,37 @@ const requireSupabase = (req, res, next) => {
 // referrer policy, HSTS) all apply.
 app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
 
-// CORS: an open `cors()` let any website on the internet call this API with the
-// visitor's credentials. Restrict to the origins we actually serve. Set
-// ALLOWED_ORIGINS (comma-separated) in production; dev defaults cover Vite.
+// CORS, on /api only.
+//
+// Static assets are same-origin by definition and need no CORS verdict. Running
+// them through this middleware is what turned a CORS misconfiguration into
+// "MIME type ('text/html')" on the stylesheet: the module script and the
+// stylesheet carry Vite's `crossorigin`, so the browser sends an Origin header
+// for them, and the old rule answered an unrecognised Origin by throwing.
+//
+// The decision lives in lib/corsOrigin.js, which documents the outage. Two
+// properties matter: this site's own host is always allowed, so a missing
+// ALLOWED_ORIGINS cannot stop the app serving itself; and a disallowed origin
+// gets no Access-Control-Allow-Origin rather than an exception, because that is
+// what CORS denial actually is. ALLOWED_ORIGINS now exists only to permit OTHER
+// origins, such as a separate front end.
 const DEFAULT_ORIGINS = ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173'];
-const allowedOrigins = (process.env.ALLOWED_ORIGINS || '')
-  .split(',').map(o => o.trim()).filter(Boolean);
-const originList = allowedOrigins.length ? allowedOrigins : DEFAULT_ORIGINS;
-app.use(cors({
-  origin(origin, cb) {
-    // No Origin header = same-origin or a non-browser client (curl, the app's own
-    // server-side calls). Those are not what CORS is protecting against.
-    if (!origin || originList.includes(origin)) return cb(null, true);
-    cb(new Error(`Origin ${origin} is not allowed`));
-  },
-  credentials: true,
-}));
+const configuredOrigins = parseAllowList(process.env.ALLOWED_ORIGINS);
+const originList = configuredOrigins.length ? configuredOrigins : DEFAULT_ORIGINS;
+app.use(
+  '/api/',
+  cors((req, cb) => {
+    const allowed = isAllowedOrigin(req.headers.origin, {
+      allowList: originList,
+      headers: req.headers,
+    });
+    // Resolving origin to `false` makes the cors package emit no
+    // Access-Control-Allow-Origin and call next() — the browser then refuses the
+    // response, which is the correct denial. Passing origin:false as a plain
+    // option would instead send "*", and throwing would send a 500.
+    cb(null, { origin: (_o, done) => done(null, allowed), credentials: true });
+  }),
+);
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
@@ -88,6 +110,9 @@ const apiLimiter = rateLimit({
   standardHeaders: 'draft-7',
   legacyHeaders: false,
   message: { error: 'Too many requests — slow down and try again shortly.' },
+  // The container polls /api/health every 10s and deploys are gated on it, so
+  // it must never be throttled by our own limiter.
+  skip: (req) => String(req.originalUrl || '').split('?')[0] === '/api/health',
 });
 const transcriptLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
