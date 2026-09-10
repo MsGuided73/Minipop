@@ -21,23 +21,14 @@ ARG VITE_SUPABASE_ANON_KEY
 ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
 ENV VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
 
-# Fail loudly rather than shipping a bundle that cannot authenticate. Without
-# this the build succeeds, the site loads, and every visitor gets the
-# "auth is not configured" screen — which is how this shipped once already.
-RUN test -n "$VITE_SUPABASE_URL" && test -n "$VITE_SUPABASE_ANON_KEY" || { \
-      echo "ERROR: VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY must be passed as build args."; \
-      echo "       Vite bakes them in at build time; setting them at runtime has no effect."; \
-      exit 1; \
-    }
-
 COPY package*.json ./
 RUN npm install
 COPY . .
-RUN npm run build
 
-# Prove the key actually landed in the bundle, so a silent miss cannot ship.
-RUN grep -rqE "eyJ|sb_publishable_" dist/assets/*.js || { \
-      echo "ERROR: no Supabase key found in the built bundle."; exit 1; }
+# The guards live in npm's prebuild/postbuild hooks rather than here, so they
+# also run under Nixpacks, a PaaS, or a laptop — anywhere `npm run build`
+# runs. See scripts/check-build-env.mjs and scripts/verify-bundle.mjs.
+RUN npm run build
 
 # Final production image
 FROM node:20-slim
