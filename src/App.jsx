@@ -31,6 +31,7 @@ import CrossReferenceNode from './nodes/CrossReferenceNode'
 import PersonaNode from './nodes/PersonaNode'
 import GroupNode from './nodes/GroupNode'
 import SemanticEdge from './components/SemanticEdge'
+import EdgeMarkers from './components/canvas/EdgeMarkers'
 import ImageGeneratorNode from './nodes/ImageGeneratorNode'
 import VoiceAgentNode from './nodes/VoiceAgentNode'
 import LensNode from './nodes/LensNode'
@@ -150,7 +151,6 @@ function CanvasApp() {
       ...params,
       type: 'semantic',
       animated: true,
-      style: { stroke: 'rgba(124, 92, 252, 0.7)', strokeWidth: 2 },
     }, eds))
   }, [setEdges])
 
@@ -551,6 +551,8 @@ function CanvasApp() {
           </div>
         )}
 
+        <EdgeMarkers />
+
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -573,7 +575,7 @@ function CanvasApp() {
           snapToGrid={false}
           deleteKeyCode="Delete"
           multiSelectionKeyCode="Shift"
-          connectionLineStyle={{ stroke: 'rgba(124, 92, 252, 0.7)', strokeWidth: 2 }}
+          connectionLineStyle={{ stroke: 'var(--accent)', strokeWidth: 2 }}
           connectionLineType="bezier"
           noWheelClassName="nopan"
           proOptions={{ hideAttribution: true }}

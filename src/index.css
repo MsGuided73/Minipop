@@ -327,10 +327,12 @@ body,
   overflow: hidden;
 }
 
+/* No stroke or width here: SemanticEdge colours each edge by the identity of
+ * the node it feeds, and an !important rule at this level silently beat the
+ * inline style, painting every edge the accent colour. Leave the paint to the
+ * component. */
 .react-flow__edge-path {
-  stroke: var(--accent-primary) !important;
-  stroke-width: 2.75 !important;
-  filter: drop-shadow(0 0 4px var(--accent-glow));
+  transition: stroke-width var(--t-hover) ease;
 }
 
 .react-flow__edge.animated .react-flow__edge-path {
@@ -344,10 +346,12 @@ body,
   }
 }
 
+/* Hover thickens the edge but keeps its own colour, so hovering does not
+ * disguise which kind of node the edge leads to. */
 .react-flow__edge:hover .react-flow__edge-path {
-  stroke: var(--accent-primary) !important;
-  stroke-width: 3.5 !important;
-  filter: drop-shadow(0 0 8px var(--accent-primary));
+  /* !important only on the geometry — the inline stroke keeps its hue. */
+  stroke-width: 3 !important;
+  opacity: 1 !important;
 }
 
 .react-flow__connection-path {
