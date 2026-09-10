@@ -102,6 +102,9 @@ export default function PromptFillModal({
       onSpawnLensNode({
         promptId: prompt.id,
         promptTitle: prompt.title,
+        // Tags are how a node finds its identity hue: an author-set tag beats a
+        // title that happens to contain the word "guide".
+        promptTags: prompt.tags || [],
         promptBody: prompt.body,
         variables: reconciled,
         values,

@@ -274,6 +274,7 @@ function CanvasApp() {
       runImmediately,
       sourceNodeId,
       label,
+      promptTags,
     } = spec
 
     // Resolve a source node: explicit selection wins; otherwise auto-detect the
@@ -314,18 +315,22 @@ function CanvasApp() {
       id,
       type: 'lensNode',
       position: pos,
-      // Spawn at a standard, consistent size so a long prompt template doesn't
-      // balloon the node. The body scrolls; drag the resize handle to grow it.
-      style: { width: 380, height: 460 },
+      // A card is a fixed width and sizes to its own content: the document it
+      // produces is read in the reader, not in the node.
+      style: { width: 270 },
       data: {
         label: label || `${promptTitle || 'Lens'}`,
         promptId,
         promptTitle,
+        promptTags,
         promptBody,
         variables,
         values,
         renderedPrompt: rendered,
         report: '',
+        // The label is still the prompt's; the document renames the node to its
+        // own title on the first run, until someone renames it by hand.
+        autoLabel: true,
         runOnMount: !!runImmediately,
       },
     }
@@ -816,7 +821,7 @@ function getNodeDefaults(type) {
     case 'imageGeneratorNode': return { label: 'Image Gen', prompt: '' }
     case 'voiceAgentNode': return { label: 'Voice Agent' }
     case 'groupNode': return { label: 'Grouping Window' }
-    case 'lensNode': return { label: 'Lens', promptTitle: '', promptBody: '', renderedPrompt: '', values: {}, report: '' }
+    case 'lensNode': return { label: 'Lens', promptTitle: '', promptTags: [], promptBody: '', renderedPrompt: '', values: {}, report: '', autoLabel: true }
     case 'transcriptNode': return { label: 'Transcript', transcript: '', videoUrl: '', uploader: '', viewCount: 0, duration: 0 }
     default: return { label: type }
   }

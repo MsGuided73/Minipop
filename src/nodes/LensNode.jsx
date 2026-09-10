@@ -1,28 +1,54 @@
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react'
-import { Handle, Position, NodeResizer, useReactFlow, useEdges, useNodes } from '@xyflow/react'
-import { X, Eye, Play, Copy, Check, Trash2, Loader, AlertCircle, FileText, Edit3, RefreshCw, Send, Bot, User as UserIcon, Code2, Download } from 'lucide-react'
+import { createPortal } from 'react-dom'
+import { Handle, Position, useReactFlow, useEdges, useNodes } from '@xyflow/react'
+import {
+  MoreHorizontal, Loader, AlertCircle, Copy, Download, RefreshCw,
+  Trash2, Code2, Pencil, Check,
+} from 'lucide-react'
 import { useCanvas } from '../context/CanvasContext'
 import { callLensChat, LENS_KICKOFF, resolveConnectedNodeIds } from '../services/aiService'
 import { renderPrompt } from '../services/promptService'
-import { useNodeReader, NodeReaderBar } from '../components/NodeReader'
-import './nodes.css'
+import { identityFor } from '../lib/nodeIdentity'
+import { docTitle, previewText, metaLine, threadToMarkdown } from '../lib/docSummary'
+import DocumentReader from '../components/reader/DocumentReader'
+import './LensCard.css'
 
+// The card is a fixed width by design: legibility of the graph beats the
+// legibility of any one document, which is what the reader is for.
+const CARD_WIDTH = 270
+const READER_EXIT_MS = 260  // must outlast --t-panel, or the drawer unmounts mid-slide
+
+/**
+ * A Lens node: a prompt pointed at one or more sources, and the document that
+ * comes back. The card stays compact; Read opens the document in the reader.
+ *
+ * The thread lives on the node (data.messages) and stays the source of truth.
+ * The reader is a view over it — including its follow-up composer, which posts
+ * back into this same thread.
+ */
 export default function LensNode({ id, data, selected }) {
   const { deleteNode, updateNode, state } = useCanvas()
-  const { getNodes, getEdges } = useReactFlow()
+  const { getNodes, getEdges, getNode, setNodes } = useReactFlow()
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [copiedIdx, setCopiedIdx] = useState(null)
-  const [copiedAll, setCopiedAll] = useState(false)
-  const [editingPrompt, setEditingPrompt] = useState(false)
-  const [editingLabel, setEditingLabel] = useState(false)
-  const [labelDraft, setLabelDraft] = useState(data.label || 'Lens')
-  const [input, setInput] = useState('')
-  const [showSystemPrompt, setShowSystemPrompt] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [showPrompt, setShowPrompt] = useState(false)
+  const [editingTitle, setEditingTitle] = useState(false)
+  const [titleDraft, setTitleDraft] = useState(data.label || 'Lens')
+  const [copied, setCopied] = useState(false)
 
-  const messages = data.messages || []
-  const reader = useNodeReader({ id, initialFontSize: data.fontSize, defaultFontSize: 11 })
+  // The reader mounts only once opened, and stays mounted for the exit
+  // transition — mounting it already-open would skip the slide-in.
+  const [readerMounted, setReaderMounted] = useState(false)
+  const [readerOpen, setReaderOpen] = useState(false)
+  const exitTimer = useRef(null)
+  const menuRef = useRef(null)
+  const menuBtnRef = useRef(null)
+
+  const messages = useMemo(() => data.messages || [], [data.messages])
+  const hasStarted = messages.length > 0
+
   const renderedPrompt = useMemo(
     () => data.renderedPrompt || (data.promptBody ? renderPrompt(data.promptBody, data.values || {}) : ''),
     [data.renderedPrompt, data.promptBody, data.values]
@@ -35,34 +61,49 @@ export default function LensNode({ id, data, selected }) {
     return allNodes.filter(n => ids.includes(n.id) && n.type !== 'lensNode' && n.type !== 'aiAssistantNode')
   }, [allNodes, allEdges, id])
 
-  const inputRef = useRef(null)
-  const messagesEndRef = useRef(null)
+  const identity = useMemo(
+    () => identityFor({ promptTitle: data.promptTitle, promptTags: data.promptTags, nodeType: 'lensNode' }),
+    [data.promptTitle, data.promptTags]
+  )
+
+  const documentMarkdown = useMemo(() => threadToMarkdown(messages), [messages])
+
+  // ── Card sizing ──────────────────────────────────────────────────────────
+  // Nodes spawned before the redesign carry style {width: 380, height: 460}.
+  // Left alone, the wrapper keeps that box and the card floats inside a large
+  // invisible hit area, so normalise it the first time such a node renders.
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages.length, loading])
+    const node = getNode(id)
+    const style = node?.style || {}
+    if (style.width === CARD_WIDTH && style.height == null) return
+    const { height, ...rest } = style
+    setNodes(nds => nds.map(n => (n.id === id ? { ...n, style: { ...rest, width: CARD_WIDTH } } : n)))
+    // Deliberately mount-only. getNode/setNodes are stable React Flow handles,
+    // and the guard above makes a repeat run a no-op, so re-running on every
+    // node change would only cost a full-array map for nothing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id])
+
+  useEffect(() => () => clearTimeout(exitTimer.current), [])
 
   // ── Actions ──────────────────────────────────────────────────────────────
 
-  const handleDelete = useCallback((e) => {
-    e.stopPropagation()
-    deleteNode(id)
-  }, [id, deleteNode])
+  // Returns whether the turn landed, so the reader knows whether to keep the
+  // question the user typed. The ref guards against two turns overlapping:
+  // each builds its next message list from a snapshot, so the later write
+  // would silently drop the earlier one's exchange.
+  const inFlight = useRef(false)
 
   const sendTurn = useCallback(async (userMessage, currentMessages) => {
+    if (inFlight.current) return false
+    inFlight.current = true
     setLoading(true)
     setError('')
     try {
       const reply = await callLensChat(
-        id,
-        userMessage,
-        renderedPrompt,
-        currentMessages,
-        getNodes(),
-        getEdges(),
-        state.apiKey,
-        state.model,
-        state.geminiKey,
-        state.anthropicKey,
+        id, userMessage, renderedPrompt, currentMessages,
+        getNodes(), getEdges(),
+        state.apiKey, state.model, state.geminiKey, state.anthropicKey,
         { autoContinue: state.autoContinue }
       )
       const nextMessages = [
@@ -70,464 +111,326 @@ export default function LensNode({ id, data, selected }) {
         { role: 'user', content: userMessage, hidden: userMessage === LENS_KICKOFF },
         { role: 'assistant', content: reply },
       ]
-      updateNode(id, { data: { messages: nextMessages, renderedPrompt } })
+      const update = { messages: nextMessages, renderedPrompt }
+
+      // A finished document names itself. Adopt that name unless the user has
+      // already chosen one — a rename clears autoLabel, and is never overruled.
+      if (data.autoLabel) {
+        const title = docTitle(reply)
+        if (title) update.label = title
+      }
+      updateNode(id, { data: update })
+      return true
     } catch (err) {
       setError(err.message)
+      return false
     } finally {
+      inFlight.current = false
       setLoading(false)
     }
-  }, [id, renderedPrompt, getNodes, getEdges, state.apiKey, state.model, state.geminiKey, state.anthropicKey, state.autoContinue, updateNode])
+  }, [id, renderedPrompt, getNodes, getEdges, state.apiKey, state.model, state.geminiKey,
+      state.anthropicKey, state.autoContinue, updateNode, data.autoLabel])
 
-  const handleInitialRun = useCallback(() => {
-    if (!renderedPrompt) {
-      setError('No prompt to run.')
-      return
-    }
-    sendTurn(LENS_KICKOFF, [])
-  }, [renderedPrompt, sendTurn])
-
-  const handleSend = useCallback(() => {
-    const msg = input.trim()
-    if (!msg || loading) return
-    setInput('')
-    sendTurn(msg, messages)
-  }, [input, loading, messages, sendTurn])
-
-  const handleRerunInitial = useCallback(() => {
+  const handleRun = useCallback(() => {
     if (loading) return
-    if (!window.confirm('Re-run the original prompt? This will replace the current conversation.')) return
-    updateNode(id, { data: { messages: [] } })
-    setTimeout(() => sendTurn(LENS_KICKOFF, []), 0)
-  }, [id, updateNode, loading, sendTurn])
+    if (!renderedPrompt) { setError('No prompt to run.'); return }
+    sendTurn(LENS_KICKOFF, [])
+  }, [loading, renderedPrompt, sendTurn])
 
-  const handleClear = useCallback((e) => {
-    e.stopPropagation()
-    if (!window.confirm('Clear the entire conversation? This cannot be undone.')) return
-    updateNode(id, { data: { messages: [] } })
-  }, [id, updateNode])
-
-  const handleCopyMessage = useCallback((content, idx) => {
-    navigator.clipboard.writeText(content)
-    setCopiedIdx(idx)
-    setTimeout(() => setCopiedIdx(null), 1500)
+  const openReader = useCallback(() => {
+    // Reopening inside the exit window must cancel the pending unmount, or the
+    // stale timer tears down the drawer the user has just reopened.
+    clearTimeout(exitTimer.current)
+    setReaderMounted(true)
+    requestAnimationFrame(() => setReaderOpen(true))
   }, [])
 
-  // Build a markdown transcript: header → system prompt → every visible exchange
+  const closeReader = useCallback(() => {
+    clearTimeout(exitTimer.current)
+    setReaderOpen(false)
+    exitTimer.current = setTimeout(() => setReaderMounted(false), READER_EXIT_MS)
+  }, [])
+
+  const handleRerun = useCallback(() => {
+    setMenuOpen(false)
+    if (loading) return
+    if (!window.confirm('Re-run the original prompt? This replaces the current document and any follow-ups.')) return
+    updateNode(id, { data: { messages: [] } })
+    setTimeout(() => sendTurn(LENS_KICKOFF, []), 0)
+  }, [id, loading, updateNode, sendTurn])
+
+  const handleClear = useCallback(() => {
+    setMenuOpen(false)
+    if (!window.confirm('Clear this document and its conversation? This cannot be undone.')) return
+    updateNode(id, { data: { messages: [] } })
+    // closeReader, not setReaderOpen: the portal has to be scheduled for
+    // unmount too, or it stays attached to the body for the node's lifetime.
+    closeReader()
+  }, [id, updateNode, closeReader])
+
+  const handleDelete = useCallback(() => {
+    setMenuOpen(false)
+    deleteNode(id)
+  }, [id, deleteNode])
+
+  // The full record: prompt and every exchange, not just the document.
   const buildTranscript = useCallback(() => {
-    const title = data.label || 'Lens'
-    const promptTitle = data.promptTitle || 'Custom prompt'
     const sources = connectedSources.map(n => n.data?.label || n.type).join(', ') || 'None'
-    const timestamp = new Date().toISOString()
-
     const lines = [
-      `# ${title}`,
-      '',
-      `- **Prompt template:** ${promptTitle}`,
+      `# ${data.label || 'Lens'}`, '',
+      `- **Prompt template:** ${data.promptTitle || 'Custom prompt'}`,
       `- **Source(s):** ${sources}`,
-      `- **Exported:** ${timestamp}`,
-      '',
-      '---',
-      '',
-      '## System Prompt (rendered)',
-      '',
-      renderedPrompt || '_(none)_',
-      '',
-      '---',
-      '',
-      '## Conversation',
-      '',
+      `- **Exported:** ${new Date().toISOString()}`, '',
+      '---', '', '## System Prompt (rendered)', '',
+      renderedPrompt || '_(none)_', '',
+      '---', '', '## Document', '',
+      documentMarkdown || '_(not run yet)_', '',
     ]
-
-    let firstAssistantRendered = false
-    messages.forEach(m => {
-      if (m.hidden) return
-      if (m.role === 'assistant' && !firstAssistantRendered) {
-        lines.push('### Initial Analysis', '')
-        firstAssistantRendered = true
-      } else if (m.role === 'user') {
-        lines.push('### You', '')
-      } else {
-        lines.push('### Assistant', '')
-      }
-      lines.push(m.content, '', '---', '')
-    })
-
     return lines.join('\n')
-  }, [data.label, data.promptTitle, connectedSources, renderedPrompt, messages])
+  }, [data.label, data.promptTitle, connectedSources, renderedPrompt, documentMarkdown])
 
-  const handleCopyAll = useCallback(() => {
-    navigator.clipboard.writeText(buildTranscript())
-    setCopiedAll(true)
-    setTimeout(() => setCopiedAll(false), 1500)
+  const handleCopyTranscript = useCallback(async () => {
+    setMenuOpen(false)
+    try {
+      await navigator.clipboard.writeText(buildTranscript())
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      setError('Could not copy — the browser blocked clipboard access.')
+    }
   }, [buildTranscript])
 
-  const handleDownloadAll = useCallback(() => {
-    const transcript = buildTranscript()
+  const handleDownload = useCallback(() => {
+    setMenuOpen(false)
     const slug = (data.label || 'lens')
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/(^-|-$)/g, '')
-      .slice(0, 80) || 'lens'
+      .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 80) || 'lens'
     const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
-    const blob = new Blob([transcript], { type: 'text/markdown;charset=utf-8' })
+    const blob = new Blob([buildTranscript()], { type: 'text/markdown;charset=utf-8' })
     const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
+    const a = window.document.createElement('a')
     a.href = url
     a.download = `${slug}-${stamp}.md`
     a.click()
     URL.revokeObjectURL(url)
   }, [buildTranscript, data.label])
 
-  const handlePromptChange = useCallback((e) => {
-    updateNode(id, { data: { renderedPrompt: e.target.value } })
-  }, [id, updateNode])
+  const commitTitle = useCallback(() => {
+    setEditingTitle(false)
+    const next = titleDraft.trim() || 'Lens'
+    if (next !== data.label) updateNode(id, { data: { label: next, autoLabel: false } })
+  }, [titleDraft, data.label, id, updateNode])
 
-  const commitLabel = useCallback(() => {
-    setEditingLabel(false)
-    const next = labelDraft.trim() || 'Lens'
-    if (next !== data.label) updateNode(id, { data: { label: next } })
-  }, [labelDraft, data.label, id, updateNode])
-
-  // Auto-run on mount if spawn marked "Run immediately"
+  // Auto-run on mount when the spawn dialog asked for it.
   const autoFiredRef = useRef(false)
   useEffect(() => {
     if (data.runOnMount && !autoFiredRef.current && messages.length === 0 && !loading) {
       autoFiredRef.current = true
       updateNode(id, { data: { runOnMount: false } })
-      handleInitialRun()
+      handleRun()
     }
+    // Keyed on runOnMount alone on purpose: autoFiredRef is what guarantees a
+    // single run (including under StrictMode's double invocation), so adding
+    // handleRun/messages/loading would only re-enter an effect that the ref
+    // already short-circuits.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data.runOnMount])
 
-  // ── Render ───────────────────────────────────────────────────────────────
+  // Close the ⋯ menu on any click outside it.
+  //
+  // Capture phase, because every control on every card calls stopPropagation to
+  // keep clicks away from React Flow. A bubble-phase listener would never see a
+  // click on a neighbouring card, leaving two menus open at once.
+  useEffect(() => {
+    if (!menuOpen) return
+    const close = (e) => {
+      // The toggle counts as inside, or its own pointerdown would close the
+      // menu a moment before its click reopens it.
+      if (menuRef.current?.contains(e.target)) return
+      if (menuBtnRef.current?.contains(e.target)) return
+      setMenuOpen(false)
+    }
+    window.addEventListener('pointerdown', close, true)
+    return () => window.removeEventListener('pointerdown', close, true)
+  }, [menuOpen])
 
-  const visibleMessages = messages.filter(m => !m.hidden)
-  const hasStarted = messages.length > 0
-  const sourceLine = connectedSources.length > 0
-    ? `${connectedSources.length} source${connectedSources.length !== 1 ? 's' : ''} · ${data.promptTitle || 'custom prompt'}`
-    : `No source connected · ${data.promptTitle || 'custom prompt'}`
+  // ── Derived display ──────────────────────────────────────────────────────
+
+  const sourceCount = connectedSources.length
+  const status = loading ? { tone: 'busy', text: 'Working…' }
+    : error ? { tone: 'err', text: 'Failed' }
+    : hasStarted ? { tone: 'ok', text: '✓ Complete' }
+    : sourceCount === 0 ? { tone: 'warn', text: 'No source' }
+    : { tone: 'idle', text: 'Ready' }
+
+  // Memoised because this component re-renders on any canvas-wide node or edge
+  // change, and both of these walk the whole document line by line — otherwise
+  // dragging one node re-parses every other card's document on every frame.
+  const preview = useMemo(
+    () => (hasStarted ? previewText(documentMarkdown) : previewText(renderedPrompt)),
+    [hasStarted, documentMarkdown, renderedPrompt]
+  )
+  const meta = useMemo(
+    () => (hasStarted
+      ? metaLine(documentMarkdown, sourceCount)
+      : `${sourceCount} source${sourceCount === 1 ? '' : 's'} · ${data.promptTitle || 'custom prompt'}`),
+    [hasStarted, documentMarkdown, renderedPrompt, sourceCount, data.promptTitle]
+  )
+
+  const stop = e => e.stopPropagation()
 
   return (
-    <div className={`node analysis-node ${selected ? 'node--selected' : ''}`} style={{ width: '100%', height: '100%', minWidth: 360, minHeight: 420 }}>
-      <NodeResizer minWidth={360} minHeight={420} isVisible={selected} />
+    <div
+      className={`cl-card ${selected ? 'cl-card--selected' : ''}`}
+      style={{ '--nc': identity.color, position: 'relative' }}
+    >
       <Handle type="target" position={Position.Left} id="target" />
       <Handle type="source" position={Position.Right} id="source" />
 
-      {/* Header */}
-      <div className="node-header analysis-node-header">
-        <div className="node-header-left" style={{ flex: 1, minWidth: 0 }}>
-          <div className="node-icon node-icon--analysis">
-            <Eye size={13} />
-          </div>
-          <div className="ai-header-info" style={{ flex: 1, minWidth: 0 }}>
-            {editingLabel ? (
-              <input
-                autoFocus
-                value={labelDraft}
-                onChange={e => setLabelDraft(e.target.value)}
-                onBlur={commitLabel}
-                onKeyDown={e => { if (e.key === 'Enter') commitLabel() }}
-                onClick={e => e.stopPropagation()}
-                style={{
-                  background: 'var(--bg-card)',
-                  border: '1px solid var(--accent-primary)',
-                  borderRadius: 4,
-                  color: 'var(--text-primary)',
-                  fontSize: 12,
-                  padding: '2px 6px',
-                  width: '100%',
-                  fontFamily: 'var(--font-sans)',
-                }}
-              />
-            ) : (
-              <span
-                className="node-label truncate"
-                onDoubleClick={() => { setLabelDraft(data.label || 'Lens'); setEditingLabel(true) }}
-                title="Double-click to rename"
-                style={{ cursor: 'text' }}
-              >
-                {data.label || 'Lens'}
-              </span>
-            )}
-            <span className="ai-node-subtitle">{sourceLine}</span>
-          </div>
-        </div>
-        <div className="node-actions">
-          {hasStarted && (
-            <button
-              className="node-action-btn"
-              onClick={handleCopyAll}
-              title="Copy entire conversation (with prompt) to clipboard"
-            >
-              {copiedAll ? <Check size={11} /> : <Copy size={11} />}
-            </button>
-          )}
-          {hasStarted && (
-            <button
-              className="node-action-btn"
-              onClick={handleDownloadAll}
-              title="Download transcript as Markdown (.md)"
-            >
-              <Download size={11} />
-            </button>
-          )}
-          {hasStarted && (
-            <button
-              className="node-action-btn"
-              onClick={() => setShowSystemPrompt(prev => !prev)}
-              title={showSystemPrompt ? 'Hide system prompt' : 'View system prompt'}
-            >
-              <Code2 size={11} />
-            </button>
-          )}
-          {hasStarted && (
-            <button className="node-action-btn" onClick={handleClear} title="Clear conversation">
-              <Trash2 size={11} />
-            </button>
-          )}
-          <button className="node-action-btn node-action-btn--danger" onClick={handleDelete}>
-            <X size={11} />
+      <div className="cl-card-head">
+        <span className="cl-card-dot" />
+        <span className="cl-card-type" title={identity.label}>{identity.label}</span>
+        <span className={`cl-card-status cl-card-status--${status.tone}`}>
+          {loading && <Loader size={10} className="cl-spin" />}
+          {status.text}
+        </span>
+        <button
+          ref={menuBtnRef}
+          className="cl-card-menu-btn nodrag"
+          onClick={e => { stop(e); setMenuOpen(o => !o) }}
+          title="Node menu"
+          aria-label="Node menu"
+          aria-expanded={menuOpen}
+        >
+          <MoreHorizontal size={14} />
+        </button>
+      </div>
+
+      {menuOpen && (
+        <div ref={menuRef} className="cl-card-menu nodrag" onClick={stop} role="menu">
+          <button onClick={() => {
+            setMenuOpen(false); setTitleDraft(data.label || 'Lens'); setEditingTitle(true)
+          }}>
+            <Pencil size={13} /> Rename
+          </button>
+          <button onClick={() => { setMenuOpen(false); setShowPrompt(p => !p) }}>
+            <Code2 size={13} /> {showPrompt ? 'Hide prompt' : (hasStarted ? 'View prompt' : 'Edit prompt')}
+          </button>
+          <button onClick={handleCopyTranscript} disabled={!hasStarted}>
+            {copied ? <Check size={13} /> : <Copy size={13} />} Copy transcript
+          </button>
+          <button onClick={handleDownload} disabled={!hasStarted}>
+            <Download size={13} /> Save .md
+          </button>
+          <hr />
+          <button onClick={handleRerun} disabled={loading || !hasStarted}>
+            <RefreshCw size={13} /> Re-run original
+          </button>
+          <button onClick={handleClear} disabled={!hasStarted}>
+            <Trash2 size={13} /> Clear document
+          </button>
+          <hr />
+          <button className="danger" onClick={handleDelete}>
+            <Trash2 size={13} /> Delete node
           </button>
         </div>
-      </div>
+      )}
 
-      <div className="analysis-content node-scrollable nopan" onClick={e => e.stopPropagation()}>
-        {/* ── Review mode: before first run ── */}
-        {!hasStarted && (
-          <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 10, height: '100%' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                Rendered Prompt
-              </span>
-              <button
-                className="node-action-btn"
-                onClick={() => setEditingPrompt(p => !p)}
-                title={editingPrompt ? 'Stop editing' : 'Edit before running'}
-              >
-                <Edit3 size={11} />
-              </button>
-            </div>
-
-            {editingPrompt ? (
-              <textarea
-                value={renderedPrompt}
-                onChange={handlePromptChange}
-                style={{
-                  flex: 1,
-                  background: 'var(--bg-card)',
-                  color: 'var(--text-primary)',
-                  border: '1px solid var(--border-default)',
-                  borderRadius: 'var(--radius-md)',
-                  padding: 10,
-                  fontFamily: 'monospace',
-                  fontSize: 11,
-                  lineHeight: 1.5,
-                  resize: 'none',
-                }}
-              />
-            ) : (
-              <div
-                style={{
-                  flex: 1,
-                  background: 'var(--bg-card)',
-                  color: 'var(--text-secondary)',
-                  border: '1px solid var(--border-default)',
-                  borderRadius: 'var(--radius-md)',
-                  padding: 10,
-                  fontFamily: 'monospace',
-                  fontSize: 11,
-                  lineHeight: 1.5,
-                  overflowY: 'auto',
-                  whiteSpace: 'pre-wrap',
-                }}
-              >
-                {renderedPrompt || '(No prompt body. Use the Prompt Library to populate this node.)'}
-              </div>
-            )}
-
-            {error && (
-              <div className="ai-error">
-                <AlertCircle size={12} /> {error}
-              </div>
-            )}
-
-            <button
-              className="btn btn-primary"
-              onClick={handleInitialRun}
-              disabled={!renderedPrompt || connectedSources.length === 0 || loading}
-              style={{ justifyContent: 'center' }}
-            >
-              {loading ? <><Loader size={13} className="spin" /> Running…</> : <><Play size={13} /> Run Lens</>}
-            </button>
-            {connectedSources.length === 0 && (
-              <p className="settings-hint" style={{ textAlign: 'center', marginTop: 0 }}>
-                Connect a source node first.
-              </p>
-            )}
-          </div>
+      <div className="cl-card-body">
+        {editingTitle ? (
+          <input
+            autoFocus
+            className="cl-card-title-input nodrag"
+            value={titleDraft}
+            onChange={e => setTitleDraft(e.target.value)}
+            onBlur={commitTitle}
+            onKeyDown={e => {
+              if (e.key === 'Enter') commitTitle()
+              if (e.key === 'Escape') setEditingTitle(false)
+              e.stopPropagation()
+            }}
+            onClick={stop}
+          />
+        ) : (
+          <h2
+            className="cl-card-title"
+            title="Double-click to rename"
+            onDoubleClick={() => { setTitleDraft(data.label || 'Lens'); setEditingTitle(true) }}
+          >
+            {data.label || 'Lens'}
+          </h2>
         )}
 
-        {/* ── Chat mode: after first run ── */}
-        {hasStarted && (
-          <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-            <NodeReaderBar
-              reader={reader}
-              placeholder="Find in conversation…"
-              matchCount={reader.countMatches(visibleMessages.map(m => m.content))}
-              compact
+        {showPrompt && (
+          hasStarted ? (
+            // Read-only after a run: editing the prompt here would leave the
+            // document below claiming to be its output when it no longer is.
+            <div className="cl-card-prompt nodrag nopan" onClick={stop}>
+              {renderedPrompt || '(no prompt)'}
+            </div>
+          ) : (
+            <textarea
+              className="cl-card-prompt nodrag nopan"
+              value={renderedPrompt}
+              onChange={e => updateNode(id, { data: { renderedPrompt: e.target.value } })}
+              onClick={stop}
+              onKeyDown={stop}
+              rows={7}
+              aria-label="Rendered prompt"
             />
-            {showSystemPrompt && (
-              <div style={{
-                padding: 10,
-                background: 'var(--bg-card)',
-                borderBottom: '1px solid var(--border-default)',
-                fontFamily: 'monospace',
-                fontSize: 10,
-                lineHeight: 1.4,
-                color: 'var(--text-secondary)',
-                maxHeight: 160,
-                overflowY: 'auto',
-                whiteSpace: 'pre-wrap',
-              }}>
-                <div style={{ fontWeight: 700, marginBottom: 6, color: 'var(--text-primary)' }}>SYSTEM PROMPT</div>
-                {renderedPrompt}
-              </div>
-            )}
+          )
+        )}
 
-            <div style={{ flex: 1, overflowY: 'auto', padding: '10px 12px' }}>
-              {visibleMessages.map((m, i) => (
-                <div
-                  key={i}
-                  style={{
-                    display: 'flex',
-                    gap: 8,
-                    marginBottom: 10,
-                    flexDirection: m.role === 'user' ? 'row-reverse' : 'row',
-                  }}
-                >
-                  <div style={{
-                    width: 22, height: 22, borderRadius: '50%',
-                    background: m.role === 'user' ? 'var(--accent-primary)' : 'var(--bg-elevated)',
-                    color: m.role === 'user' ? '#fff' : 'var(--text-primary)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                  }}>
-                    {m.role === 'user' ? <UserIcon size={11} /> : <Bot size={11} />}
-                  </div>
-                  <div style={{
-                    background: m.role === 'user' ? 'var(--accent-primary)' : 'var(--bg-card)',
-                    color: m.role === 'user' ? '#fff' : 'var(--text-primary)',
-                    border: m.role === 'user' ? 'none' : '1px solid var(--border-default)',
-                    borderRadius: 'var(--radius-md)',
-                    padding: '8px 10px',
-                    fontSize: reader.fontSize,
-                    lineHeight: 1.5,
-                    maxWidth: '85%',
-                    whiteSpace: 'pre-wrap',
-                    position: 'relative',
-                  }}>
-                    {reader.highlight(m.content)}
-                    {m.role === 'assistant' && (
-                      <button
-                        onClick={() => handleCopyMessage(m.content, i)}
-                        style={{
-                          position: 'absolute', top: 4, right: 4,
-                          background: 'transparent', border: 'none', cursor: 'pointer',
-                          color: 'var(--text-muted)', padding: 2, borderRadius: 4,
-                        }}
-                        title="Copy"
-                      >
-                        {copiedIdx === i ? <Check size={11} /> : <Copy size={11} />}
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-
-              {loading && (
-                <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-                  <div style={{
-                    width: 22, height: 22, borderRadius: '50%',
-                    background: 'var(--bg-elevated)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                  }}>
-                    <Bot size={11} />
-                  </div>
-                  <div className="ai-typing">
-                    <span /><span /><span />
-                  </div>
-                </div>
-              )}
-
-              {error && (
-                <div className="ai-error">
-                  <AlertCircle size={12} /> {error}
-                </div>
-              )}
-
-              <div ref={messagesEndRef} />
-            </div>
-
-            {/* Input + actions */}
-            <div style={{
-              borderTop: '1px solid var(--border-default)',
-              padding: 8,
-              background: 'var(--bg-deep)',
-            }}>
-              <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end' }}>
-                <textarea
-                  ref={inputRef}
-                  value={input}
-                  onChange={e => setInput(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault()
-                      handleSend()
-                    }
-                  }}
-                  placeholder="Ask a follow-up about this analysis…"
-                  rows={2}
-                  style={{
-                    flex: 1,
-                    background: 'var(--bg-card)',
-                    color: 'var(--text-primary)',
-                    border: '1px solid var(--border-default)',
-                    borderRadius: 'var(--radius-md)',
-                    padding: '6px 8px',
-                    fontSize: 11,
-                    fontFamily: 'var(--font-sans)',
-                    resize: 'none',
-                    outline: 'none',
-                  }}
-                  disabled={loading}
-                />
-                <button
-                  className="btn btn-primary"
-                  onClick={handleSend}
-                  disabled={loading || !input.trim()}
-                  style={{ padding: '6px 10px', height: 'fit-content' }}
-                  title="Send (Enter)"
-                >
-                  <Send size={12} />
-                </button>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 10, color: 'var(--text-muted)' }}>
-                <span>↵ Send · ⇧↵ Newline</span>
-                <button
-                  onClick={handleRerunInitial}
-                  disabled={loading}
-                  style={{
-                    background: 'transparent', border: 'none', color: 'var(--text-muted)',
-                    cursor: 'pointer', fontSize: 10, display: 'flex', alignItems: 'center', gap: 3,
-                  }}
-                  title="Re-run the original prompt (replaces conversation)"
-                >
-                  <RefreshCw size={10} /> Re-run original
-                </button>
-              </div>
-            </div>
-          </div>
+        {error ? (
+          <p className="cl-card-error"><AlertCircle size={13} /> {error}</p>
+        ) : preview ? (
+          <p className="cl-card-preview">{preview}</p>
+        ) : (
+          <p className="cl-card-preview cl-card-preview--empty">
+            {hasStarted ? 'This document is empty.' : 'No prompt yet — open the Prompt Library to fill this node.'}
+          </p>
         )}
       </div>
+
+      <div className="cl-card-foot">
+        <span className="cl-card-meta" title={meta}>{meta}</span>
+        {hasStarted ? (
+          <button className="cl-card-open nodrag" onClick={e => { stop(e); openReader() }}>
+            Read ⤢
+          </button>
+        ) : (
+          <button
+            className="cl-card-open nodrag"
+            onClick={e => { stop(e); handleRun() }}
+            disabled={loading || !renderedPrompt || sourceCount === 0}
+            title={
+              sourceCount === 0 ? 'Connect a source node first'
+                : !renderedPrompt ? 'This node has no prompt yet'
+                : 'Run the prompt against the connected source'
+            }
+          >
+            {loading ? 'Running…' : error ? 'Retry ↻' : 'Run ▶'}
+          </button>
+        )}
+      </div>
+
+      {/* React Flow transforms the viewport, and a transformed ancestor makes
+          position:fixed resolve against it instead of the window — so the
+          reader has to live outside the flow entirely. */}
+      {readerMounted && createPortal(
+        <DocumentReader
+          open={readerOpen}
+          title={data.label || 'Document'}
+          typeLabel={identity.label}
+          color={identity.color}
+          sourceLabel={connectedSources.map(n => n.data?.label || n.type).join(', ')}
+          markdown={documentMarkdown}
+          busy={loading}
+          error={error}
+          onClose={closeReader}
+          onSendFollowUp={text => sendTurn(text, messages)}
+        />,
+        window.document.body
+      )}
     </div>
   )
 }

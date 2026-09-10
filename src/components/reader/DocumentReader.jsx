@@ -24,6 +24,7 @@ export default function DocumentReader({
   sourceLabel,
   markdown,
   busy = false,
+  error = '',
   onClose,
   onSendFollowUp,
 }) {
@@ -71,12 +72,15 @@ export default function DocumentReader({
     URL.revokeObjectURL(url)
   }
 
-  function submitFollowUp(e) {
+  // The typed question is only cleared once the turn has actually landed.
+  // Clearing it optimistically loses what the user wrote every time a request
+  // fails, which is exactly when they would want to retry it.
+  async function submitFollowUp(e) {
     e.preventDefault()
     const text = followUp.trim()
     if (!text || busy) return
-    onSendFollowUp?.(text)
-    setFollowUp('')
+    const sent = await onSendFollowUp?.(text)
+    if (sent !== false) setFollowUp('')
   }
 
   const docSize = `${SIZE_BASE + sizeStep * SIZE_STEP}px`
@@ -137,6 +141,10 @@ export default function DocumentReader({
             </p>
           )}
         </div>
+
+        {error && (
+          <p className="cl-reader-error" role="alert">{error}</p>
+        )}
 
         <form className="cl-reader-foot" onSubmit={submitFollowUp}>
           <input

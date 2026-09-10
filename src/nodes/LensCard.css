@@ -1,0 +1,253 @@
+/* Node card — ported from the "ContentLoom Node Redesign" mockup.
+ *
+ * Prefixed cl- because nodes.css already owns .node, .node-header and friends
+ * for the older nodes; the two have to coexist until every node is redesigned.
+ *
+ * --nc is the node's identity hue, set per-node by the component. Everything
+ * colour-bearing on the card reads from it, so a new node type needs no CSS.
+ */
+
+.cl-card {
+  width: 270px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-card);
+  font-family: var(--font-ui);
+  color: var(--ink);
+  transition: transform var(--t-hover) ease,
+              box-shadow var(--t-hover) ease,
+              border-color var(--t-hover) ease;
+}
+.cl-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-overlay);
+  border-color: var(--nc, var(--line));
+}
+.cl-card--selected {
+  border-color: var(--nc, var(--accent));
+  box-shadow: var(--shadow-overlay), 0 0 0 1px var(--nc, var(--accent));
+}
+
+/* ── header ─────────────────────────────────────────────────────────────── */
+
+.cl-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px 7px;
+}
+.cl-card-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--nc, var(--accent));
+  flex: none;
+}
+.cl-card-type {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--nc, var(--accent));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cl-card-status {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--ok);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.cl-card-status--idle { color: var(--faint); }
+.cl-card-status--busy { color: var(--accent); }
+.cl-card-status--warn { color: var(--warn); }
+.cl-card-status--err  { color: var(--err); }
+.cl-card-status .cl-spin { animation: cl-spin 1s linear infinite; }
+@keyframes cl-spin { to { transform: rotate(360deg); } }
+
+/* ── body ───────────────────────────────────────────────────────────────── */
+
+.cl-card-body { padding: 2px 12px 10px; }
+.cl-card-title {
+  font-weight: 600;
+  font-size: 13.5px;
+  line-height: 1.35;
+  margin: 0 0 6px;
+  text-wrap: balance;
+  color: var(--ink);
+  cursor: text;
+}
+.cl-card-title-input {
+  width: 100%;
+  font-family: inherit;
+  font-weight: 600;
+  font-size: 13.5px;
+  line-height: 1.35;
+  margin: 0 0 6px;
+  color: var(--ink);
+  background: var(--panel-2);
+  border: 1px solid var(--nc, var(--accent));
+  border-radius: var(--r-control);
+  padding: 3px 6px;
+  outline: none;
+}
+.cl-card-preview {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.cl-card-preview--empty { color: var(--faint); font-style: italic; }
+.cl-card-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  color: var(--err);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+/* The prompt, opened from the ⋯ menu. Read-only once the node has run —
+ * editing a prompt whose output already exists would silently desync them. */
+.cl-card-prompt {
+  margin: 0 0 8px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  color: var(--muted);
+  font-family: ui-monospace, "JetBrains Mono", monospace;
+  font-size: 10.5px;
+  line-height: 1.5;
+  padding: 8px;
+  max-height: 190px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  width: 100%;
+  resize: vertical;
+}
+textarea.cl-card-prompt { color: var(--ink); resize: vertical; }
+
+/* ── footer ─────────────────────────────────────────────────────────────── */
+
+.cl-card-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px 10px;
+  border-top: 1px solid var(--line-soft);
+}
+.cl-card-meta {
+  font-size: 11px;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cl-card-open {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--nc, var(--accent));
+  background: none;
+  padding: 5px 10px;
+  border-radius: var(--r-control);
+  border: 1px solid color-mix(in srgb, var(--nc, var(--accent)) 45%, transparent);
+  min-height: 26px;
+  cursor: pointer;
+  transition: background var(--t-hover) ease;
+}
+.cl-card-open:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--nc, var(--accent)) 14%, transparent);
+}
+.cl-card-open:disabled { opacity: .45; cursor: default; }
+
+/* ── ⋯ menu ─────────────────────────────────────────────────────────────── */
+
+.cl-card-menu-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 22px; height: 22px;
+  flex: none;
+  border-radius: var(--r-control);
+  border: 1px solid transparent;
+  background: none;
+  color: var(--faint);
+  cursor: pointer;
+  transition: background var(--t-hover) ease, color var(--t-hover) ease;
+}
+.cl-card-menu-btn:hover { background: var(--panel-2); color: var(--ink); }
+
+.cl-card-menu {
+  position: absolute;
+  top: 34px; right: 8px;
+  z-index: 20;
+  min-width: 178px;
+  padding: 4px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  box-shadow: var(--shadow-overlay);
+  display: flex;
+  flex-direction: column;
+}
+.cl-card-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 9px;
+  min-height: 30px;
+  background: none;
+  border: none;
+  border-radius: 5px;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.cl-card-menu button:hover:not(:disabled) { background: var(--panel-2); }
+.cl-card-menu button:disabled { opacity: .4; cursor: default; }
+.cl-card-menu button.danger { color: var(--err); }
+.cl-card-menu button.danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--err) 12%, transparent);
+}
+.cl-card-menu hr { border: none; border-top: 1px solid var(--line-soft); margin: 4px 2px; }
+
+/* ── handles ────────────────────────────────────────────────────────────── */
+
+/* !important throughout because index.css styles every handle in the app with
+ * an all-!important rule; without matching it the card's handles stay the
+ * legacy orange while the rest of the card follows its identity hue. Scoped to
+ * .cl-card so no other node type is affected. */
+.cl-card .react-flow__handle {
+  width: 10px !important;
+  height: 10px !important;
+  background: var(--panel-2) !important;
+  border: 2px solid var(--nc, var(--accent)) !important;
+  box-shadow: none !important;
+}
+.cl-card .react-flow__handle:hover {
+  width: 14px !important;
+  height: 14px !important;
+  background: var(--nc, var(--accent)) !important;
+  box-shadow: none !important;
+}
