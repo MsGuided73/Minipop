@@ -6,3 +6,14 @@ dist
 *.md
 Dockerfile
 .dockerignore
+
+# Never copy real credentials into an image layer. Excluding it also keeps a
+# local build honest: with .env present, Vite would read the keys from it and
+# the build would succeed here while failing on a server that only has a git
+# clone. Build-time values come in as build args instead.
+.env
+.env.*
+!.env.example
+
+backups
+preview
