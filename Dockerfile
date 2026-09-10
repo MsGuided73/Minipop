@@ -50,6 +50,9 @@ RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o 
 # Copy build artifacts and server files
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/server.js ./
+# server.js imports from lib/ — without this the container starts and dies
+# on ERR_MODULE_NOT_FOUND. Anything server.js reaches for has to be listed here.
+COPY --from=builder /app/lib ./lib
 COPY --from=builder /app/package*.json ./
 
 # Install only production dependencies

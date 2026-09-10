@@ -12,6 +12,7 @@ import dotenv from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
 import { YoutubeTranscript } from 'youtube-transcript/dist/youtube-transcript.esm.js';
 import { ApifyClient } from 'apify-client';
+import { isStaticAssetPath, assetNotFoundBody } from './lib/staticAssets.js';
 
 dotenv.config();
 
@@ -660,6 +661,27 @@ app.post('/api/v1/boards/:id/query', requireAuth, async (req, res) => {
     personaMandate,
     instruction: "Use the provided context and brand voice to answer the query accurately."
   });
+});
+
+// A missing build artifact must 404 rather than fall through to the SPA
+// fallback below. Without this, an absent stylesheet comes back as index.html
+// with a 200 and the browser can only report a MIME type error — the same
+// symptom for a stale page, a mid-swap deploy, and a build that never emitted
+// the file. lib/staticAssets.js carries the full reasoning.
+//
+// Placed after express.static, so files that exist in dist/ are still served,
+// and after the API routes, so it cannot shadow one.
+app.use((req, res, next) => {
+  if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+  if (!isStaticAssetPath(req.path)) return next();
+
+  // no-store: a 404 for a fingerprinted URL must never be cached, or a
+  // client that raced a deploy keeps the failure after the file arrives.
+  res
+    .status(404)
+    .type('text/plain')
+    .set('Cache-Control', 'no-store')
+    .send(assetNotFoundBody(req.path));
 });
 
 // Fallback to index.html for React SPA routing
