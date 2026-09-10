@@ -54,47 +54,117 @@
 
 .cl-reader-scroll { flex: 1; overflow-y: auto; }
 
+/* ── The document ───────────────────────────────────────────────────────────
+ * Styled to read like markdown pasted into Google Docs: Arial, tight leading,
+ * a bold heading hierarchy at the Docs sizes (20/16/14/12pt against 11pt body),
+ * dash bullets with hanging indents.
+ *
+ * Sizes are in em so the reader's A− / A+ control still scales the whole
+ * document from --doc-size.
+ *
+ * The page follows the app theme rather than forcing white — which is what
+ * Google Docs itself does in dark mode. Everything below reads from
+ * --reader-ink / --reader-bg, so switching to an always-white page is a change
+ * to those two tokens, not to these rules.
+ */
 .cl-doc {
-  max-width: 62ch; margin: 0 auto;
-  padding: 30px 28px 48px;
-  font-family: var(--font-reader);
-  font-size: var(--doc-size, 15.5px);
-  line-height: 1.68;
+  max-width: 6.5in;          /* Docs: an 8.5in page less its 1in margins */
+  margin: 0 auto;
+  padding: 34px 28px 60px;
+  font-family: Arial, "Helvetica Neue", Helvetica, sans-serif;
+  font-size: var(--doc-size, 15px);   /* ≈ 11pt */
+  line-height: 1.38;
   color: var(--reader-ink);
 }
-.cl-doc h1, .cl-doc h2, .cl-doc h3, .cl-doc h4 {
-  font-family: var(--font-display);
-  line-height: 1.25; text-wrap: balance; color: var(--ink);
+
+.cl-doc h1, .cl-doc h2, .cl-doc h3, .cl-doc h4, .cl-doc h5, .cl-doc h6 {
+  font-family: inherit;
+  font-weight: 700;
+  line-height: 1.2;
+  text-wrap: balance;
+  color: var(--ink);
 }
-.cl-doc h1 { font-size: 1.72em; font-weight: 700; margin: .2em 0 .7em; }
-.cl-doc h2 {
-  font-size: 1.28em; font-weight: 600; margin: 1.7em 0 .55em;
-  padding-top: .9em; border-top: 1px solid var(--line-soft);
+.cl-doc h1 { font-size: 1.82em; margin: 1.15em 0 .35em; }   /* 20pt */
+.cl-doc h2 { font-size: 1.45em; margin: 1.05em 0 .3em; }    /* 16pt */
+.cl-doc h3 { font-size: 1.27em; margin: 1em 0 .28em; color: var(--muted); }   /* 14pt */
+.cl-doc h4 { font-size: 1.09em; margin: .95em 0 .25em; color: var(--muted); } /* 12pt */
+.cl-doc h5, .cl-doc h6 { font-size: 1em; margin: .9em 0 .25em; color: var(--muted); }
+.cl-doc > :first-child { margin-top: 0; }
+
+.cl-doc p { margin: 0 0 .8em; }
+.cl-doc strong { font-weight: 700; color: var(--ink); }
+.cl-doc em { font-style: italic; }
+.cl-doc del { text-decoration: line-through; color: var(--muted); }
+
+.cl-doc a { color: #1155cc; text-decoration: underline; }
+:root:not([data-theme="light"]) .cl-doc a { color: #8ab4f8; }
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) .cl-doc a { color: #1155cc; }
 }
-.cl-doc h3 { font-size: 1.1em; font-weight: 600; margin: 1.4em 0 .4em; }
-.cl-doc h4 {
-  font-size: 1em; font-weight: 600; margin: 1.2em 0 .35em;
-  color: color-mix(in srgb, var(--rc, var(--accent)) 75%, var(--ink));
-}
-.cl-doc p { margin: .65em 0; }
-.cl-doc ul, .cl-doc ol { margin: .5em 0; padding-left: 1.35em; }
-.cl-doc li { margin: .3em 0; }
-.cl-doc li::marker { color: var(--rc, var(--accent)); }
+
+/* Lists: dash markers with a hanging indent, as Docs renders a pasted "-" list.
+ * Deeper levels step through the Docs glyph sequence. */
+.cl-doc ul, .cl-doc ol { margin: .4em 0 .8em; padding-left: 1.6em; }
+.cl-doc ul { list-style-type: "-"; }
+.cl-doc ul ul { list-style-type: "\25E6"; }        /* ◦ */
+.cl-doc ul ul ul { list-style-type: "\25AA"; }     /* ▪ */
+.cl-doc ol { list-style-type: decimal; }
+.cl-doc ol ol { list-style-type: lower-alpha; }
+.cl-doc ol ol ol { list-style-type: lower-roman; }
+.cl-doc li { margin: .18em 0; padding-left: .35em; }
+.cl-doc li::marker { color: inherit; }
+.cl-doc li > ul, .cl-doc li > ol { margin: .18em 0 .1em; }
+
+.cl-doc li.cl-task { list-style: none; margin-left: -1.2em; }
+.cl-doc li.cl-task input { margin-right: .5em; vertical-align: middle; }
+
 .cl-doc blockquote {
-  margin: 1em 0; padding: .6em 1.1em;
-  border-left: 3px solid var(--rc, var(--accent));
-  background: color-mix(in srgb, var(--rc, var(--accent)) 7%, transparent);
-  border-radius: 0 8px 8px 0;
-  font-style: italic;
+  margin: .8em 0;
+  padding: .1em 0 .1em 1em;
+  border-left: 3px solid var(--line);
+  color: var(--muted);
 }
 .cl-doc blockquote p { margin: .2em 0; }
-.cl-doc hr { border: none; border-top: 1px solid var(--line-soft); margin: 1.6em 0; }
-.cl-doc strong { font-weight: 700; color: var(--ink); }
-.cl-doc code {
-  font-family: ui-monospace, "JetBrains Mono", monospace;
-  font-size: .88em; background: var(--panel-2);
-  padding: 1px 5px; border-radius: 4px; color: var(--c-guide);
+
+.cl-doc hr { border: none; border-top: 1px solid var(--line); margin: 1.4em 0; }
+
+/* Tables, as a pasted markdown table lands in Docs: ruled grid, bold header. */
+.cl-doc table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: .8em 0 1em;
+  font-size: .95em;
 }
+.cl-doc th, .cl-doc td {
+  border: 1px solid var(--line);
+  padding: 6px 9px;
+  text-align: left;
+  vertical-align: top;
+}
+.cl-doc th { font-weight: 700; background: var(--panel-2); color: var(--ink); }
+
+.cl-doc code {
+  font-family: "Courier New", ui-monospace, monospace;
+  font-size: .92em;
+  background: var(--panel-2);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+.cl-doc pre {
+  margin: .8em 0 1em;
+  padding: 10px 12px;
+  background: var(--panel-2);
+  border: 1px solid var(--line-soft);
+  border-radius: 4px;
+  overflow-x: auto;
+}
+.cl-doc pre code {
+  background: none; padding: 0; border-radius: 0;
+  font-size: .9em; line-height: 1.45; white-space: pre;
+}
+
+.cl-doc img { max-width: 100%; height: auto; margin: .6em 0; }
+
 .cl-doc-end {
   text-align: center; color: var(--faint); letter-spacing: .5em;
   font-family: var(--font-ui); font-size: 12px; margin-top: 2.2em;
@@ -122,6 +192,10 @@
 }
 .cl-send:disabled { opacity: .5; cursor: default; }
 
+.cl-reader-empty {
+  padding: 40px 28px; color: var(--faint); font-size: 13px; text-align: center;
+}
+
 /* A failed follow-up has to be visible here: the backdrop hides the card that
  * would otherwise be the only place the error appears. */
 .cl-reader-error {
@@ -133,8 +207,4 @@
   color: var(--err);
   font-size: 12.5px;
   line-height: 1.45;
-}
-
-.cl-reader-empty {
-  padding: 40px 28px; color: var(--faint); font-size: 13px; text-align: center;
 }
