@@ -8,18 +8,29 @@
 //
 //   npm run visual              boot Vite, check preview/cards.html
 //   npm run visual -- --url=…   check a page that is already running
-//   npm run visual -- --open    leave the screenshots' directory path printed
 //
 // The default target is preview/cards.html: the real LensNode, SemanticEdge
 // and React Flow on fixture data, which needs no sign-in and no backend. To
-// check the signed-in app instead, run `npm run dev`, sign in, and pass the
-// board's URL with --url — the assertions look for cards, not for fixtures.
+// check the signed-in app instead, run the app and pass its URL with --url —
+// the assertions look for cards, not for fixtures.
 //
-// Screenshots land in .visual/ (gitignored) in both themes, so a change can be
-// looked at as well as asserted.
+// A real board is behind the sign-in gate, and this browser has its own empty
+// session, so --url signs in with a test account when one is configured:
+//
+//   VISUAL_EMAIL=bot@example.com
+//   VISUAL_PASSWORD=…
+//
+// in .env (gitignored) or the environment. Use an account that exists only for
+// this — the run drives the real app as whoever signs in. The session is kept
+// in .visual/auth.json so later runs skip the form; that file is a live token,
+// which is why .visual/ is gitignored. Delete it to sign in again.
+//
+// Screenshots land in .visual/ in both themes, so a change can be looked at as
+// well as asserted.
 
+import 'dotenv/config'
 import { spawn } from 'node:child_process'
-import { mkdir, rm } from 'node:fs/promises'
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import { chromium } from 'playwright'
@@ -31,12 +42,22 @@ const OUT = path.join(ROOT, '.visual')
 const PORT = 5199
 const DEFAULT_PATH = '/preview/cards.html'
 
+const AUTH_STATE = path.join(OUT, 'auth.json')
+
 const args = process.argv.slice(2)
 const urlArg = args.find(a => a.startsWith('--url='))?.slice('--url='.length)
 
+const credentials = process.env.VISUAL_EMAIL && process.env.VISUAL_PASSWORD
+  ? { email: process.env.VISUAL_EMAIL, password: process.env.VISUAL_PASSWORD }
+  : null
+
 const run = async () => {
+  // Screenshots are regenerated every run; the saved session is not, or every
+  // run would sign in again.
+  const keptSession = await readIfPresent(AUTH_STATE)
   await rm(OUT, { recursive: true, force: true })
   await mkdir(OUT, { recursive: true })
+  if (keptSession) await writeFile(AUTH_STATE, keptSession)
 
   const server = urlArg ? null : await startVite()
   const url = urlArg || `http://localhost:${PORT}${DEFAULT_PATH}`
@@ -55,21 +76,22 @@ const run = async () => {
 // ── The browser pass ─────────────────────────────────────────────────────────
 
 async function inspect(browser, url) {
-  const page = await browser.newPage({
+  const context = await browser.newContext({
     viewport: { width: 1400, height: 900 },
     deviceScaleFactor: 2,
+    storageState: await readIfPresent(AUTH_STATE) ? AUTH_STATE : undefined,
   })
+  const page = await context.newPage()
 
   await page.goto(url, { waitUntil: 'domcontentloaded' })
   // A signed-in board fetches its nodes, so wait for a card rather than a tick.
   try {
     await page.waitForSelector('.cl-card', { timeout: 20_000 })
   } catch (err) {
-    // The likeliest reason a real board shows no cards is the sign-in screen,
-    // and "waiting for selector timed out" does not say that.
-    const gate = await page.locator('text=Sign in to your boards').count()
-    if (gate) throw new Error(`${url} is showing the sign-in screen — sign in in a browser first, or drop --url to use the fixture canvas`)
-    throw err
+    if (!(await atSignIn(page))) throw err
+    await signIn(page, url)
+    await context.storageState({ path: AUTH_STATE })
+    await page.waitForSelector('.cl-card', { timeout: 20_000 })
   }
   // React Flow settles its transform after mount; screenshotting mid-fit gives
   // half-placed cards and measurements taken against the wrong width.
@@ -123,6 +145,47 @@ function measureCards() {
 
     return { name, tag, hue, problems }
   })
+}
+
+// ── Signing in ──────────────────────────────────────────────────────────
+
+const atSignIn = page => page.locator('text=Sign in to your boards').count().then(Boolean)
+
+async function signIn(page, url) {
+  if (!credentials) {
+    throw new Error(
+      `${url} is showing the sign-in screen, and no test account is configured. ` +
+      'Set VISUAL_EMAIL and VISUAL_PASSWORD in .env, or drop --url to use the fixture canvas.'
+    )
+  }
+
+  console.log(`  signing in as ${credentials.email}…`)
+  await page.fill('input[type="email"]', credentials.email)
+  await page.fill('input[type="password"]', credentials.password)
+  await page.click('button[type="submit"]')
+
+  // Supabase reports a bad password on the form rather than throwing, so watch
+  // for the card and the error together and let whichever lands first speak.
+  const failed = page.locator('form p', { hasText: /invalid|incorrect|failed|not found|credentials/i })
+  const outcome = await Promise.race([
+    page.waitForSelector('.cl-card', { timeout: 30_000 }).then(() => 'in'),
+    failed.first().waitFor({ timeout: 30_000 }).then(() => 'rejected'),
+  ]).catch(() => 'stuck')
+
+  if (outcome === 'rejected') {
+    throw new Error(`sign-in was rejected: ${(await failed.first().textContent())?.trim()}`)
+  }
+  if (outcome === 'stuck') {
+    throw new Error('signed in, but no cards appeared — does this board have any?')
+  }
+}
+
+async function readIfPresent(file) {
+  try {
+    return await readFile(file)
+  } catch {
+    return null
+  }
 }
 
 // ── Reporting ────────────────────────────────────────────────────────────────
@@ -185,4 +248,10 @@ async function startVite() {
   return server
 }
 
-process.exitCode = await run()
+// A stack trace is noise for every failure this script has: they are all
+// "the page did not show what it should have", and the message says it.
+process.exitCode = await run().catch(err => {
+  console.error(`✗ ${err.message}`)
+  if (args.includes('--debug')) console.error(err)
+  return 1
+})

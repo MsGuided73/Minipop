@@ -19,11 +19,23 @@ npm run visual -- --url=http://localhost:3000/   # or check a real board
 The default target is `preview/cards.html`: the real card components on a real
 React Flow canvas with fixture data, so it needs no sign-in and no backend.
 
-`--url` points it at a running instance instead, which means a board you are
-signed into. Two things to know about `:3000`, the port `npm run dev` puts the
-app on: it is Express serving `dist/`, so it shows the **last build** rather
-than the working tree — run `npm run build` first, or point at Vite on `:5173`
-to see live source. And the check drives its own browser, which does not share
-your session; against a board it can only reach the sign-in screen, and it says
-so rather than timing out. Screenshotting a signed-in board needs a Playwright
-profile that has signed in once.
+`--url` points it at a running instance instead. One thing to know about
+`:3000`, the port the app is usually opened on: it is Express serving `dist/`,
+so it shows the **last build** rather than the working tree — run `npm run
+build` first, or point at Vite on `:5173` for live source.
+
+A real board is behind the sign-in gate, and the check drives its own browser
+with its own empty session. Give it a test account:
+
+```bash
+# .env (gitignored)
+VISUAL_EMAIL=visual-bot@example.com
+VISUAL_PASSWORD=...
+```
+
+It signs in, then keeps the session in `.visual/auth.json` so later runs go
+straight to the board; delete that file to sign in again. Use an account that
+exists only for this — the run drives the real app as whoever signs in, and
+`auth.json` is a live token (which is why `.visual/` is gitignored). Without
+credentials the check says the page is at the sign-in screen instead of timing
+out on a missing card.
