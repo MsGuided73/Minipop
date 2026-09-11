@@ -21,6 +21,9 @@ Thumbs.db
 # Vite cache
 .vite/
 
+# Visual-check screenshots (npm run visual)
+.visual/
+
 # Temp files
 .tmp/
 

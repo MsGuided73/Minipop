@@ -13,6 +13,7 @@
     "start": "node server.js",
     "preview": "vite preview",
     "test": "vitest run",
+    "visual": "node scripts/visual-check.mjs",
     "test:watch": "vitest"
   },
   "dependencies": {
