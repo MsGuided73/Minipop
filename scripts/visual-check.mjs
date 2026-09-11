@@ -25,6 +25,10 @@
 // in .visual/auth.json so later runs skip the form; that file is a live token,
 // which is why .visual/ is gitignored. Delete it to sign in again.
 //
+// A signed-in browser starts on an empty canvas, since the app rehydrates from
+// browser-local storage and this profile has none, so the run opens a board
+// from the explorer: the first one, or --board=<name> to choose.
+//
 // Screenshots land in .visual/ in both themes, so a change can be looked at as
 // well as asserted.
 
@@ -46,6 +50,11 @@ const AUTH_STATE = path.join(OUT, 'auth.json')
 
 const args = process.argv.slice(2)
 const urlArg = args.find(a => a.startsWith('--url='))?.slice('--url='.length)
+
+// A fresh browser profile has an empty canvas: the app rehydrates from
+// browser-local storage, so an account's boards live on the server until one
+// is opened. --board picks it by name; without it, the first board wins.
+const boardArg = args.find(a => a.startsWith('--board='))?.slice('--board='.length)
 
 const credentials = process.env.VISUAL_EMAIL && process.env.VISUAL_PASSWORD
   ? { email: process.env.VISUAL_EMAIL, password: process.env.VISUAL_PASSWORD }
@@ -88,9 +97,14 @@ async function inspect(browser, url) {
   try {
     await page.waitForSelector('.cl-card', { timeout: 20_000 })
   } catch (err) {
-    if (!(await atSignIn(page))) throw err
-    await signIn(page, url)
-    await context.storageState({ path: AUTH_STATE })
+    if (await atSignIn(page)) {
+      await signIn(page, url)
+      await context.storageState({ path: AUTH_STATE })
+    } else if (!(await page.locator('.cl-shell').count())) {
+      throw err
+    }
+    // Signed in, but on an empty canvas: open a board the way a person would.
+    await openBoard(page)
     await page.waitForSelector('.cl-card', { timeout: 20_000 })
   }
   // React Flow settles its transform after mount; screenshotting mid-fit gives
@@ -165,10 +179,10 @@ async function signIn(page, url) {
   await page.click('button[type="submit"]')
 
   // Supabase reports a bad password on the form rather than throwing, so watch
-  // for the card and the error together and let whichever lands first speak.
+  // for the app and the error together and let whichever lands first speak.
   const failed = page.locator('form p', { hasText: /invalid|incorrect|failed|not found|credentials/i })
   const outcome = await Promise.race([
-    page.waitForSelector('.cl-card', { timeout: 30_000 }).then(() => 'in'),
+    page.waitForSelector('.cl-shell', { timeout: 30_000 }).then(() => 'in'),
     failed.first().waitFor({ timeout: 30_000 }).then(() => 'rejected'),
   ]).catch(() => 'stuck')
 
@@ -176,8 +190,39 @@ async function signIn(page, url) {
     throw new Error(`sign-in was rejected: ${(await failed.first().textContent())?.trim()}`)
   }
   if (outcome === 'stuck') {
-    throw new Error('signed in, but no cards appeared — does this board have any?')
+    throw new Error('signed in, but the app never appeared')
   }
+}
+
+/**
+ * Opens a board from the workspace explorer. Folders start collapsed, so the
+ * boards inside them are not clickable — or even present — until they are
+ * opened.
+ */
+async function openBoard(page) {
+  const folders = page.locator('.cl-folder-row[aria-expanded="false"]')
+  for (const folder of await folders.all()) await folder.click()
+
+  const boards = page.locator('.cl-file-row')
+  await boards.first().waitFor({ timeout: 10_000 }).catch(() => {})
+
+  const names = await boards.allTextContents()
+  if (names.length === 0) {
+    throw new Error(
+      'signed in, but this account has no saved boards — build one with a card on it, ' +
+      'or drop --url to use the fixture canvas'
+    )
+  }
+
+  const wanted = boardArg
+    ? names.findIndex(n => n.trim().toLowerCase().includes(boardArg.toLowerCase()))
+    : 0
+  if (wanted === -1) {
+    throw new Error(`no board matching "${boardArg}" — this account has: ${names.map(n => n.trim()).join(', ')}`)
+  }
+
+  console.log(`  opening board "${names[wanted].trim()}"…`)
+  await boards.nth(wanted).click()
 }
 
 async function readIfPresent(file) {

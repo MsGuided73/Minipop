@@ -33,8 +33,12 @@ VISUAL_EMAIL=visual-bot@example.com
 VISUAL_PASSWORD=...
 ```
 
-It signs in, then keeps the session in `.visual/auth.json` so later runs go
-straight to the board; delete that file to sign in again. Use an account that
+It signs in, opens a board from the explorer (the first one, or
+`--board=<name>` to choose), and keeps the session in `.visual/auth.json` so
+later runs skip the form; delete that file to sign in again. Opening a board is
+not optional: the app rehydrates its canvas from browser-local storage, and
+this browser has none, so a signed-in run starts on an empty canvas until a
+board is opened. The account therefore needs one saved board with cards on it. Use an account that
 exists only for this — the run drives the real app as whoever signs in, and
 `auth.json` is a live token (which is why `.visual/` is gitignored). Without
 credentials the check says the page is at the sign-in screen instead of timing
