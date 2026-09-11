@@ -180,7 +180,13 @@ async function signIn(page, url) {
 
   // Supabase reports a bad password on the form rather than throwing, so watch
   // for the app and the error together and let whichever lands first speak.
-  const failed = page.locator('form p', { hasText: /invalid|incorrect|failed|not found|credentials/i })
+  // Whatever Supabase said, verbatim: "Invalid login credentials", "Email not
+  // confirmed" for an account whose link has not been clicked, a rate-limit
+  // notice. The form renders all of them the same way, so match the shape of
+  // an error rather than a list of wordings that will drift.
+  const failed = page.locator('form p', {
+    hasText: /invalid|incorrect|failed|not found|credentials|not confirmed|too many|disabled|rate/i,
+  })
   const outcome = await Promise.race([
     page.waitForSelector('.cl-shell', { timeout: 30_000 }).then(() => 'in'),
     failed.first().waitFor({ timeout: 30_000 }).then(() => 'rejected'),
