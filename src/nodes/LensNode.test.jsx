@@ -100,10 +100,31 @@ beforeEach(() => {
 // ── Before the first run ─────────────────────────────────────────────────────
 
 describe('LensNode card — before a run', () => {
-  test('shows the identity from the prompt tag, not the prompt title', () => {
-    renderCard(baseData())
-    // Tagged "guide", so it is a How-To Guide even though the title says Course.
+  test('leads with the prompt name and tags the family under it', () => {
+    const { container } = renderCard(baseData())
+    // Tagged "guide", so it wears the guide hue and the guide tag — but the
+    // name says which guide it is, since "How-To Guide" is another prompt.
+    const badge = screen.getByText('Comprehensive Course')
+    expect(badge).toBeInTheDocument()
+    // The badge is clipped; the tooltip is where the full name survives.
+    expect(badge).toHaveAttribute('title', 'Comprehensive Course Builder')
+    expect(container.querySelector('.cl-card-family')).toHaveTextContent('How-To Guide')
+    expect(container.querySelector('.cl-card').style.getPropertyValue('--nc'))
+      .toBe('var(--c-guide)')
+  })
+
+  test('drops the family tag when it would only repeat the name', () => {
+    const { container } = renderCard(baseData({ promptTitle: 'How-To Guide' }))
     expect(screen.getByText('How-To Guide')).toBeInTheDocument()
+    expect(container.querySelector('.cl-card-family')).toBeNull()
+  })
+
+  test('an unclassified prompt gets no tag rather than an invented one', () => {
+    const { container } = renderCard(baseData({ promptTitle: 'Peptide Marketing', promptTags: [] }))
+    expect(screen.getByText('Peptide Marketing')).toBeInTheDocument()
+    expect(container.querySelector('.cl-card-family')).toBeNull()
+    expect(container.querySelector('.cl-card').style.getPropertyValue('--nc'))
+      .toBe('var(--accent)')
   })
 
   test('is Ready with a source connected and offers to run', () => {

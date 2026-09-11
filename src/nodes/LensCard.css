@@ -35,7 +35,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 9px 12px 7px;
+  padding: 9px 12px 6px;
 }
 .cl-card-dot {
   width: 8px; height: 8px;
@@ -43,16 +43,44 @@
   background: var(--nc, var(--accent));
   flex: none;
 }
+/* The name of the prompt, so it is set as a name: sentence case, no tracking.
+ * The uppercase-and-tracked treatment moved down to the family tag, where a
+ * category belongs — at 270px it cost this line about a third of its
+ * characters, which is why names were arriving clipped. */
 .cl-card-type {
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: .14em;
-  text-transform: uppercase;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: .005em;
   color: var(--nc, var(--accent));
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* The family tag sits on its own line under the name, indented past the dot
+ * and its gap (12px padding + 8px dot + 8px gap) so it hangs off the name
+ * rather than off the card edge. */
+.cl-card-tags {
+  display: flex;
+  gap: 4px;
+  padding: 0 12px 7px 28px;
+  margin-top: -2px;
+}
+.cl-card-family {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--nc, var(--accent));
+  background: color-mix(in srgb, var(--nc, var(--accent)) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--nc, var(--accent)) 30%, transparent);
+  border-radius: 999px;
+  padding: 1px 7px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .cl-card-status {
   margin-left: auto;
   display: inline-flex;

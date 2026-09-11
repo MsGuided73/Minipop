@@ -288,7 +288,9 @@ export default function LensNode({ id, data, selected }) {
 
       <div className="cl-card-head">
         <span className="cl-card-dot" />
-        <span className="cl-card-type" title={identity.label}>{identity.label}</span>
+        {/* The badge is shortened and the header may clip it further, so the
+            tooltip is where the prompt's full name stays reachable. */}
+        <span className="cl-card-type" title={data.promptTitle || identity.label}>{identity.label}</span>
         <span className={`cl-card-status cl-card-status--${status.tone}`}>
           {loading && <Loader size={10} className="cl-spin" />}
           {status.text}
@@ -304,6 +306,15 @@ export default function LensNode({ id, data, selected }) {
           <MoreHorizontal size={14} />
         </button>
       </div>
+
+      {/* The family under the name: what the border colour means, and the one
+          thing this card has in common with others on the canvas. Hidden when
+          it would only repeat the name — an unnamed node already wears it. */}
+      {identity.family && identity.family !== identity.label && (
+        <div className="cl-card-tags">
+          <span className="cl-card-family">{identity.family}</span>
+        </div>
+      )}
 
       {menuOpen && (
         <div ref={menuRef} className="cl-card-menu nodrag" onClick={stop} role="menu">

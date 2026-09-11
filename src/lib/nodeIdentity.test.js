@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { identityFor, displayLabel, IDENTITIES } from './nodeIdentity'
+import { identityFor, displayLabel, shortLabel, IDENTITIES } from './nodeIdentity'
 
 describe('identityFor — source nodes', () => {
   test.each([
@@ -51,6 +51,95 @@ describe('identityFor — fallback', () => {
     const id = identityFor()
     expect(id.color).toBe('var(--accent)')
     expect(id.label).toBe('Document')
+  })
+})
+
+describe('identityFor — education is a subject, not a family', () => {
+  test.each([
+    ['Study Notes', ['notes', 'education'], 'notes'],
+    ['Glossary & Key Terms', ['glossary', 'education', 'extraction'], 'notes'],
+    ['Quiz & Flashcard Generator', ['quiz', 'education'], 'notes'],
+    ['Comprehensive Course Builder', ['course', 'education', 'repurpose'], 'guide'],
+  ])('%s → %s', (promptTitle, promptTags, key) => {
+    expect(identityFor({ promptTitle, promptTags }).key).toBe(key)
+  })
+})
+
+describe('shortLabel', () => {
+  test.each([
+    ['How-To Guide', 'How-To Guide'],
+    ['Concept Explainer', 'Concept Explainer'],
+    ['Comprehensive Course Builder', 'Comprehensive Course'],
+    ['Action Plan & Checklist', 'Action Plan'],
+    ['Executive Summary & Takeaways', 'Executive Summary'],
+    ['Fact, Claim & Citation Extractor', 'Fact, Claim'],
+    ['Tools, Resources & People Mentioned', 'Tools, Resources'],
+    ['Quiz & Flashcard Generator', 'Quiz & Flashcard'],
+    ['Social Media Content Pack', 'Social Media Content'],
+    ['Tone, Bias & Audience Analysis', 'Tone, Bias'],
+  ])('%s → %s', (title, expected) => {
+    expect(shortLabel(title)).toBe(expected)
+  })
+
+  test('keeps the head and drops a subtitle', () => {
+    expect(shortLabel('Action Plan: eight steps to ship')).toBe('Action Plan')
+    expect(shortLabel('Study Notes — exhaustive')).toBe('Study Notes')
+  })
+
+  test('a single word past the cap is cut with an ellipsis, since it has no word boundary', () => {
+    expect(shortLabel('Supercalifragilisticexpialidocious')).toBe('Supercalifragilisti…')
+  })
+
+  test('a two-word title keeps both words rather than stranding one', () => {
+    expect(shortLabel('Concept Explainer')).toBe('Concept Explainer')
+    expect(shortLabel('Reconciliation Walkthrough')).toBe('Reconciliation Walkthrough')
+  })
+
+  test('a first word past the cap is cut rather than paired with the next', () => {
+    expect(shortLabel('Supercalifragilisticexpialidocious Explainer'))
+      .toBe('Supercalifragilisti…')
+  })
+
+  test('an empty or blank title gives nothing to fall back from', () => {
+    expect(shortLabel('')).toBe('')
+    expect(shortLabel('   ')).toBe('')
+  })
+})
+
+describe('identityFor — the badge names the prompt, not its family', () => {
+  test.each([
+    ['Comprehensive Course Builder', 'guide', 'Comprehensive Course'],
+    ['Action Plan & Checklist', 'guide', 'Action Plan'],
+    ['Study Notes', 'notes', 'Study Notes'],
+    ['Alternate Video Script', 'script', 'Alternate Video'],
+  ])('%s keeps the %s hue but is labelled %s', (promptTitle, key, label) => {
+    const id = identityFor({ promptTitle })
+    expect(id.key).toBe(key)
+    expect(id.label).toBe(label)
+  })
+
+  test('only the How-To Guide prompt is labelled How-To Guide', () => {
+    expect(identityFor({ promptTitle: 'How-To Guide', promptTags: ['guide', 'how-to'] }).label)
+      .toBe('How-To Guide')
+  })
+
+  test('a node with no prompt yet falls back to the family name', () => {
+    expect(identityFor({ promptTags: ['guide'] }).label).toBe('How-To Guide')
+  })
+
+  test('the family travels alongside the name, for the tag under it', () => {
+    const id = identityFor({ promptTitle: 'Comprehensive Course Builder' })
+    expect(id.label).toBe('Comprehensive Course')
+    expect(id.family).toBe('How-To Guide')
+  })
+
+  test('an unclassified prompt has no family to tag', () => {
+    expect(identityFor({ promptTitle: 'Peptide Marketing' }).family).toBeNull()
+  })
+
+  test('a source keeps its family name even if a prompt title is passed', () => {
+    expect(identityFor({ nodeType: 'youtubeNode', promptTitle: 'Viral Video Script' }).label)
+      .toBe('Source')
   })
 })
 
