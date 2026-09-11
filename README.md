@@ -13,9 +13,17 @@ in `.visual/`.
 ```bash
 npx playwright install chromium   # once, ~115MB, lives outside the repo
 npm run visual                    # boots Vite on :5199, checks preview/cards.html
-npm run visual -- --url=http://localhost:5173/   # or check a signed-in board
+npm run visual -- --url=http://localhost:3000/   # or check a real board
 ```
 
 The default target is `preview/cards.html`: the real card components on a real
-React Flow canvas with fixture data, so it needs no sign-in and no backend. To
-check a real board instead, run `npm run dev`, sign in, and pass its URL.
+React Flow canvas with fixture data, so it needs no sign-in and no backend.
+
+`--url` points it at a running instance instead, which means a board you are
+signed into. Two things to know about `:3000`, the port `npm run dev` puts the
+app on: it is Express serving `dist/`, so it shows the **last build** rather
+than the working tree — run `npm run build` first, or point at Vite on `:5173`
+to see live source. And the check drives its own browser, which does not share
+your session; against a board it can only reach the sign-in screen, and it says
+so rather than timing out. Screenshotting a signed-in board needs a Playwright
+profile that has signed in once.

@@ -62,7 +62,15 @@ async function inspect(browser, url) {
 
   await page.goto(url, { waitUntil: 'domcontentloaded' })
   // A signed-in board fetches its nodes, so wait for a card rather than a tick.
-  await page.waitForSelector('.cl-card', { timeout: 20_000 })
+  try {
+    await page.waitForSelector('.cl-card', { timeout: 20_000 })
+  } catch (err) {
+    // The likeliest reason a real board shows no cards is the sign-in screen,
+    // and "waiting for selector timed out" does not say that.
+    const gate = await page.locator('text=Sign in to your boards').count()
+    if (gate) throw new Error(`${url} is showing the sign-in screen — sign in in a browser first, or drop --url to use the fixture canvas`)
+    throw err
+  }
   // React Flow settles its transform after mount; screenshotting mid-fit gives
   // half-placed cards and measurements taken against the wrong width.
   await page.waitForTimeout(1200)
