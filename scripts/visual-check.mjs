@@ -17,8 +17,8 @@
 // A real board is behind the sign-in gate, and this browser has its own empty
 // session, so --url signs in with a test account when one is configured:
 //
-//   VISUAL_EMAIL=bot@example.com
-//   VISUAL_PASSWORD=…
+//   AGENT_EMAIL=bot@…
+//   AGENT_PASSWORD=…
 //
 // in .env (gitignored) or the environment. Use an account that exists only for
 // this — the run drives the real app as whoever signs in. The session is kept
@@ -56,8 +56,8 @@ const urlArg = args.find(a => a.startsWith('--url='))?.slice('--url='.length)
 // is opened. --board picks it by name; without it, the first board wins.
 const boardArg = args.find(a => a.startsWith('--board='))?.slice('--board='.length)
 
-const credentials = process.env.VISUAL_EMAIL && process.env.VISUAL_PASSWORD
-  ? { email: process.env.VISUAL_EMAIL, password: process.env.VISUAL_PASSWORD }
+const credentials = process.env.AGENT_EMAIL && process.env.AGENT_PASSWORD
+  ? { email: process.env.AGENT_EMAIL, password: process.env.AGENT_PASSWORD }
   : null
 
 const run = async () => {
@@ -169,7 +169,7 @@ async function signIn(page, url) {
   if (!credentials) {
     throw new Error(
       `${url} is showing the sign-in screen, and no test account is configured. ` +
-      'Set VISUAL_EMAIL and VISUAL_PASSWORD in .env, or drop --url to use the fixture canvas.'
+      'Set AGENT_EMAIL and AGENT_PASSWORD in .env, or drop --url to use the fixture canvas.'
     )
   }
 

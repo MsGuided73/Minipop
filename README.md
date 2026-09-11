@@ -29,8 +29,8 @@ with its own empty session. Give it a test account:
 
 ```bash
 # .env (gitignored)
-VISUAL_EMAIL=visual-bot@example.com
-VISUAL_PASSWORD=...
+AGENT_EMAIL=...
+AGENT_PASSWORD=...
 ```
 
 It signs in, opens a board from the explorer (the first one, or
