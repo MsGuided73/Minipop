@@ -212,8 +212,13 @@ async function signIn(page, url) {
  * opened.
  */
 async function openBoard(page) {
-  const folders = page.locator('.cl-folder-row[aria-expanded="false"]')
-  for (const folder of await folders.all()) await folder.click()
+  // Re-query each time: expanding one folder re-renders the list, so a single
+  // snapshot of "collapsed folders" goes stale on the first click.
+  const collapsed = page.locator('.cl-folder-row[aria-expanded="false"]')
+  for (let guard = 0; guard < 40 && await collapsed.count(); guard++) {
+    await collapsed.first().click()
+    await page.waitForTimeout(120)
+  }
 
   const boards = page.locator('.cl-file-row')
   await boards.first().waitFor({ timeout: 10_000 }).catch(() => {})
