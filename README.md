@@ -65,13 +65,12 @@ The key is never sent back to a browser, including the browser that saved it.
 Settings shows a hint (`sk-…7Xb2`) and offers Replace and Remove; there is no
 path in the app that reads a stored key back out.
 
-**Server environment** — both are required before keys can be saved or used;
-without them the key routes answer 503 saying which is missing, rather than
-storing keys in the clear:
+**Server environment** — one variable, required before any key can be saved or
+used. Without it the key routes answer 503 rather than storing keys in the clear,
+and no prompt can run:
 
 ```bash
 KEY_ENCRYPTION_SECRET=...   # 32+ chars: node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
-SUPABASE_SERVICE_ROLE_KEY=...  # Supabase dashboard → Settings → API → service_role
 ```
 
 `KEY_ENCRYPTION_SECRET` must be **the same everywhere that shares a database**.
@@ -79,11 +78,17 @@ Local and production point at the same Supabase project, so a key saved against
 one and read by the other only works if both hold the same secret. Change it and
 every stored key becomes unreadable — users re-enter them, nothing else breaks.
 
-The service role key bypasses row-level security and must never reach a browser.
-It is needed because `pop_user_keys` denies every other role: RLS is on with no
-policies, so even a user's own browser, holding their own JWT, cannot read their
-own ciphertext. See [supabase/user_keys.sql](supabase/user_keys.sql) and
+`pop_user_keys` is reached with the caller's own JWT and scoped by row-level
+security, the same as boards and prompts — there is no service_role key in the
+app. A browser can therefore fetch its own ciphertext directly from Supabase,
+which is not a key: decryption needs the secret above, and that never leaves the
+server. See [supabase/user_keys.sql](supabase/user_keys.sql) and
 [lib/keyCrypto.js](lib/keyCrypto.js).
+
+**Existing keys migrate themselves.** A key saved in a browser before this
+change is uploaded to the account on next load and then deleted from
+`localStorage` — users never have to find and re-paste one, which matters
+because the old settings field was a password input they could not read.
 
 **What this changed for users:** keys now follow the account, so signing in on a
 new browser no longer means pasting the key again. The voice agent was removed

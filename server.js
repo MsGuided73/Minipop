@@ -50,23 +50,6 @@ if (!supabaseUrl || !supabaseKey) {
   supabase = createClient(supabaseUrl, supabaseKey);
 }
 
-// A second client, for the one table the browser must never reach.
-//
-// pop_user_keys holds users' own API keys: RLS denies every client role, so
-// the only way in is service_role, which bypasses RLS. That is deliberate —
-// a browser holding a user's JWT still cannot read even its own ciphertext.
-// Without this key the app runs exactly as before, minus stored keys.
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-let supabaseAdmin = null;
-if (supabaseUrl && serviceRoleKey) {
-  supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-} else {
-  console.warn('⚠️  SUPABASE_SERVICE_ROLE_KEY is not set — saved API keys are unavailable.');
-  console.warn('⚠️  /api/v1/keys and /api/v1/ai/complete will return 503.');
-}
-
 // Middleware: short-circuit DB-dependent routes when Supabase isn't configured.
 const requireSupabase = (req, res, next) => {
   if (!supabase) {
@@ -679,20 +662,16 @@ app.delete('/api/v1/prompts/:id', requireAuth, async (req, res) => {
 // that supplied it. What the client can see is the hint ("sk-…7Xb2"), which is
 // enough to know which key is saved and useless for anything else.
 //
-// Requires both SUPABASE_SERVICE_ROLE_KEY (to reach the table at all) and
-// KEY_ENCRYPTION_SECRET (to encrypt what goes in it). Missing either is a 503
-// with a message that says which, rather than a route that quietly stores
-// nothing or, worse, stores keys in the clear.
+// The table is reached with the caller's own JWT, scoped by row-level
+// security, exactly like boards and prompts — no service_role key exists in
+// this server. A browser can therefore fetch its own ciphertext directly from
+// Supabase, which is not a key: decryption needs KEY_ENCRYPTION_SECRET, and
+// that never leaves this process. Without that secret the routes below answer
+// 503 rather than storing anything in the clear.
 
 const PROVIDERS = ['openai', 'google', 'anthropic'];
 
 const requireKeyStore = (req, res, next) => {
-  if (!supabaseAdmin) {
-    return res.status(503).json({
-      error: 'Key storage unavailable',
-      detail: 'SUPABASE_SERVICE_ROLE_KEY is not configured on this server.',
-    });
-  }
   if (!isCryptoConfigured()) {
     return res.status(503).json({
       error: 'Key storage unavailable',
@@ -716,7 +695,7 @@ function looksLikeKey(provider, key) {
 
 /** What is saved, never what it is. */
 app.get('/api/v1/keys', requireAuth, requireKeyStore, async (req, res) => {
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await db(req)
     .from('pop_user_keys')
     .select('provider, hint, updated_at')
     .eq('user_id', req.user.id);
@@ -751,7 +730,7 @@ app.put('/api/v1/keys/:provider', requireAuth, requireKeyStore, async (req, res)
   }
 
   const encrypted = encryptKey(key);
-  const { error } = await supabaseAdmin
+  const { error } = await db(req)
     .from('pop_user_keys')
     .upsert({
       user_id: req.user.id,
@@ -776,7 +755,7 @@ app.delete('/api/v1/keys/:provider', requireAuth, requireKeyStore, async (req, r
     return res.status(400).json({ error: `Unknown provider "${provider}"` });
   }
 
-  const { error } = await supabaseAdmin
+  const { error } = await db(req)
     .from('pop_user_keys')
     .delete()
     .eq('user_id', req.user.id)
@@ -807,7 +786,7 @@ const completionLimiter = rateLimit({
  */
 async function keyForRequest(req, res, model) {
   const provider = getProvider(model);
-  const { data: row, error } = await supabaseAdmin
+  const { data: row, error } = await db(req)
     .from('pop_user_keys')
     .select('ciphertext, iv, tag')
     .eq('user_id', req.user.id)

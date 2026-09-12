@@ -7,6 +7,26 @@ const CanvasContext = createContext(null)
 
 // ─── API keys ────────────────────────────────────────────────────────────────
 // Not kept here any more.
+
+// Keys saved before they moved to the account are still sitting in this
+// browser's localStorage, base64'd. They are read once, uploaded, and deleted
+// — see migrateLegacyKeys below. Nothing writes these any more.
+const LEGACY_KEYS = {
+  openai: 'poppyai_apikey',
+  google: 'poppyai_gemini_key',
+  anthropic: 'poppyai_anthropic_key',
+}
+
+function readLegacyKey(storageKey) {
+  try {
+    const stored = localStorage.getItem(storageKey)
+    if (!stored) return ''
+    try { return decodeURIComponent(escape(atob(stored))) } catch { return stored }
+  } catch {
+    return ''
+  }
+}
+
 //
 // They used to live in localStorage, which meant every tab could read them,
 // they never followed the user to another browser, and the provider call had
@@ -181,11 +201,64 @@ export function CanvasProvider({ children }) {
   // ─── The user's own provider keys ────────────────────────────────────────
   // Write-only from here: we send a key up and get back a hint. Nothing in
   // this app can read a stored key back out, including this function.
+  /**
+   * Carries keys saved in this browser up to the account, once.
+   *
+   * Before this, a key lived in localStorage and went straight from the page
+   * to the provider. Users should not have to find and re-paste something the
+   * app already has — and they cannot read it back out of the old settings
+   * field anyway, since it was a password input. So it moves itself: upload
+   * what is here, then delete the local copy, which is the only way the old
+   * exposure actually goes away.
+   *
+   * Runs after the saved list is known, and never overwrites a key already on
+   * the account — what is on the server is the newer of the two by definition.
+   */
+  const migrateLegacyKeys = useCallback(async (saved) => {
+    const alreadySaved = new Set((saved || []).map(k => k.provider))
+    const moved = []
+
+    for (const [provider, storageKey] of Object.entries(LEGACY_KEYS)) {
+      const legacy = readLegacyKey(storageKey)
+      if (!legacy || alreadySaved.has(provider)) {
+        // Nothing here, or the account already has one. Either way the local
+        // copy has no further use and should not linger.
+        if (legacy) { try { localStorage.removeItem(storageKey) } catch { /* private mode */ } }
+        continue
+      }
+
+      try {
+        const res = await apiFetch(`/api/v1/keys/${provider}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: legacy }),
+        })
+        if (!res.ok) continue      // leave it be and try again next load
+        try { localStorage.removeItem(storageKey) } catch { /* private mode */ }
+        moved.push(provider)
+      } catch {
+        // Offline, or key storage not configured on this server. The local
+        // copy stays so the next load can try again.
+      }
+    }
+
+    return moved
+  }, [])
+
   const fetchKeys = useCallback(async () => {
     try {
       const res = await apiFetch('/api/v1/keys')
       if (!res.ok) throw new Error('Could not read saved keys')
-      dispatch({ type: 'SET_KEYS', keys: await res.json() })
+      const keys = await res.json()
+
+      // One-time: move anything this browser still holds from before keys
+      // belonged to the account, then report the list including what moved.
+      const moved = await migrateLegacyKeys(keys)
+      if (moved.length) {
+        const after = await apiFetch('/api/v1/keys')
+        if (after.ok) return dispatch({ type: 'SET_KEYS', keys: await after.json() })
+      }
+      dispatch({ type: 'SET_KEYS', keys })
     } catch (err) {
       // A server without key storage configured is a 503 here. The app still
       // works for everything that is not a model call, so this is not fatal —
@@ -193,7 +266,7 @@ export function CanvasProvider({ children }) {
       console.error('Failed to fetch keys:', err.message)
       dispatch({ type: 'SET_KEYS', keys: [] })
     }
-  }, [])
+  }, [migrateLegacyKeys])
 
   const saveKey = useCallback(async (provider, key) => {
     const res = await apiFetch(`/api/v1/keys/${provider}`, {
