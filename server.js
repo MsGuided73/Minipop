@@ -13,6 +13,8 @@ import { createClient } from '@supabase/supabase-js';
 import { YoutubeTranscript } from 'youtube-transcript/dist/youtube-transcript.esm.js';
 import { ApifyClient } from 'apify-client';
 import { isStaticAssetPath, assetNotFoundBody } from './lib/staticAssets.js';
+import { encryptKey, decryptKey, keyHint, isCryptoConfigured } from './lib/keyCrypto.js';
+import { getProvider, PROVIDER_LABELS, runCompletion, generateImage } from './lib/aiProviders.js';
 import { isAllowedOrigin, parseAllowList } from './lib/corsOrigin.js';
 
 dotenv.config();
@@ -46,6 +48,23 @@ if (!supabaseUrl || !supabaseKey) {
   console.error('⚠️  Fix: populate .env per .env.example.');
 } else {
   supabase = createClient(supabaseUrl, supabaseKey);
+}
+
+// A second client, for the one table the browser must never reach.
+//
+// pop_user_keys holds users' own API keys: RLS denies every client role, so
+// the only way in is service_role, which bypasses RLS. That is deliberate —
+// a browser holding a user's JWT still cannot read even its own ciphertext.
+// Without this key the app runs exactly as before, minus stored keys.
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+let supabaseAdmin = null;
+if (supabaseUrl && serviceRoleKey) {
+  supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+} else {
+  console.warn('⚠️  SUPABASE_SERVICE_ROLE_KEY is not set — saved API keys are unavailable.');
+  console.warn('⚠️  /api/v1/keys and /api/v1/ai/complete will return 503.');
 }
 
 // Middleware: short-circuit DB-dependent routes when Supabase isn't configured.
@@ -651,6 +670,215 @@ app.delete('/api/v1/prompts/:id', requireAuth, async (req, res) => {
     return res.status(500).json({ error: error.message });
   }
   res.json({ success: true });
+});
+
+// ─── BYOK: the user's own provider keys ───────────────────────────────────────
+//
+// The key belongs to the user. The server borrows it for the length of one
+// completion and never hands it to a browser — not even back to the browser
+// that supplied it. What the client can see is the hint ("sk-…7Xb2"), which is
+// enough to know which key is saved and useless for anything else.
+//
+// Requires both SUPABASE_SERVICE_ROLE_KEY (to reach the table at all) and
+// KEY_ENCRYPTION_SECRET (to encrypt what goes in it). Missing either is a 503
+// with a message that says which, rather than a route that quietly stores
+// nothing or, worse, stores keys in the clear.
+
+const PROVIDERS = ['openai', 'google', 'anthropic'];
+
+const requireKeyStore = (req, res, next) => {
+  if (!supabaseAdmin) {
+    return res.status(503).json({
+      error: 'Key storage unavailable',
+      detail: 'SUPABASE_SERVICE_ROLE_KEY is not configured on this server.',
+    });
+  }
+  if (!isCryptoConfigured()) {
+    return res.status(503).json({
+      error: 'Key storage unavailable',
+      detail: 'KEY_ENCRYPTION_SECRET is not configured on this server (32+ characters).',
+    });
+  }
+  next();
+};
+
+// Shape check only. Whether a key actually works is the provider's answer to
+// give, and a rejected call says so more accurately than a regex could.
+function looksLikeKey(provider, key) {
+  if (typeof key !== 'string') return false;
+  const trimmed = key.trim();
+  if (trimmed.length < 16 || trimmed.length > 400) return false;
+  if (/\s/.test(trimmed)) return false;
+  if (provider === 'openai' && !trimmed.startsWith('sk-')) return false;
+  if (provider === 'anthropic' && !trimmed.startsWith('sk-ant-')) return false;
+  return true;
+}
+
+/** What is saved, never what it is. */
+app.get('/api/v1/keys', requireAuth, requireKeyStore, async (req, res) => {
+  const { data, error } = await supabaseAdmin
+    .from('pop_user_keys')
+    .select('provider, hint, updated_at')
+    .eq('user_id', req.user.id);
+
+  if (error) {
+    console.error('[keys] list failed:', error.message);
+    return res.status(500).json({ error: 'Could not read your saved keys' });
+  }
+
+  res.json((data || []).map(row => ({
+    provider: row.provider,
+    label: PROVIDER_LABELS[row.provider] || row.provider,
+    hint: row.hint,
+    updatedAt: row.updated_at,
+  })));
+});
+
+app.put('/api/v1/keys/:provider', requireAuth, requireKeyStore, async (req, res) => {
+  const { provider } = req.params;
+  if (!PROVIDERS.includes(provider)) {
+    return res.status(400).json({ error: `Unknown provider "${provider}"` });
+  }
+
+  const key = String(req.body?.key || '').trim();
+  if (!looksLikeKey(provider, key)) {
+    return res.status(400).json({
+      error: `That does not look like a ${PROVIDER_LABELS[provider]} key`,
+      detail: provider === 'openai' ? 'OpenAI keys start with "sk-".'
+        : provider === 'anthropic' ? 'Anthropic keys start with "sk-ant-".'
+        : 'Paste the key exactly as the provider gave it, with no spaces.',
+    });
+  }
+
+  const encrypted = encryptKey(key);
+  const { error } = await supabaseAdmin
+    .from('pop_user_keys')
+    .upsert({
+      user_id: req.user.id,
+      provider,
+      ciphertext: encrypted.ciphertext,
+      iv: encrypted.iv,
+      tag: encrypted.tag,
+      hint: keyHint(key),
+    }, { onConflict: 'user_id,provider' });
+
+  if (error) {
+    console.error('[keys] save failed:', error.message);
+    return res.status(500).json({ error: 'Could not save your key' });
+  }
+
+  res.json({ provider, label: PROVIDER_LABELS[provider], hint: keyHint(key) });
+});
+
+app.delete('/api/v1/keys/:provider', requireAuth, requireKeyStore, async (req, res) => {
+  const { provider } = req.params;
+  if (!PROVIDERS.includes(provider)) {
+    return res.status(400).json({ error: `Unknown provider "${provider}"` });
+  }
+
+  const { error } = await supabaseAdmin
+    .from('pop_user_keys')
+    .delete()
+    .eq('user_id', req.user.id)
+    .eq('provider', provider);
+
+  if (error) {
+    console.error('[keys] delete failed:', error.message);
+    return res.status(500).json({ error: 'Could not remove your key' });
+  }
+
+  res.status(204).end();
+});
+
+// Completions run here so the key can stay here. The client sends the prompt
+// it assembled; the server adds the caller's own key and nothing else.
+const completionLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 120,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { error: 'Too many completions — wait a few minutes.' },
+});
+
+/**
+ * The caller's key for a model, decrypted, or null after it has answered the
+ * request itself. Every path out of here that returns null has already told
+ * the client what is wrong and why.
+ */
+async function keyForRequest(req, res, model) {
+  const provider = getProvider(model);
+  const { data: row, error } = await supabaseAdmin
+    .from('pop_user_keys')
+    .select('ciphertext, iv, tag')
+    .eq('user_id', req.user.id)
+    .eq('provider', provider)
+    .maybeSingle();
+
+  if (error) {
+    console.error('[ai] key lookup failed:', error.message);
+    res.status(500).json({ error: 'Could not read your saved key' });
+    return null;
+  }
+  if (!row) {
+    // 428: the request is fine, the account is not ready for it. The client
+    // turns this into "add your key" rather than a generic failure.
+    res.status(428).json({
+      error: `No ${PROVIDER_LABELS[provider]} key saved`,
+      detail: `Add one in Settings to use ${model}.`,
+      provider,
+    });
+    return null;
+  }
+
+  try {
+    return decryptKey(row);
+  } catch (err) {
+    console.error('[ai] decrypt failed for user', req.user.id, '-', err.message);
+    res.status(500).json({
+      error: 'Your saved key could not be read',
+      detail: 'Re-enter it in Settings.',
+      provider,
+    });
+    return null;
+  }
+}
+
+app.post('/api/v1/ai/complete', completionLimiter, requireAuth, requireKeyStore, async (req, res) => {
+  const { model, system, messages, temperature, maxTokens, useSearch, autoContinue } = req.body || {};
+
+  if (!model || !Array.isArray(messages) || messages.length === 0) {
+    return res.status(400).json({ error: 'model and a non-empty messages array are required' });
+  }
+
+  const apiKey = await keyForRequest(req, res, model);
+  if (!apiKey) return;
+
+  try {
+    const { text, rounds } = await runCompletion({
+      apiKey, model, system, messages, temperature, maxTokens, useSearch, autoContinue,
+    });
+    res.json({ text, rounds });
+  } catch (err) {
+    // The provider's own words are the useful part; the key is never in them.
+    console.error('[ai] completion failed:', err.message);
+    res.status(502).json({ error: err.message || 'The model provider rejected the request' });
+  }
+});
+
+app.post('/api/v1/ai/image', completionLimiter, requireAuth, requireKeyStore, async (req, res) => {
+  const { model, prompt } = req.body || {};
+  if (!model || !prompt) return res.status(400).json({ error: 'model and prompt are required' });
+
+  const apiKey = await keyForRequest(req, res, model);
+  if (!apiKey) return;
+
+  try {
+    const image = await generateImage({ apiKey, model, prompt });
+    res.json({ image });
+  } catch (err) {
+    console.error('[ai] image failed:', err.message);
+    res.status(502).json({ error: err.message || 'The image provider rejected the request' });
+  }
 });
 
 /**

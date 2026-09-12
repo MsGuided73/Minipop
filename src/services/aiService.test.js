@@ -1,181 +1,96 @@
-import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest'
-import { callAI, generateCrossReferenceTable } from './aiService'
+import { describe, test, expect, vi, beforeEach } from 'vitest'
 
-// Minimal canvas: one AI node, nothing connected. Keeps the tests focused on the
-// request/continue plumbing rather than on context building.
+// The provider calls live on the server now (lib/aiProviders.js, tested in
+// lib/aiProviders.test.mjs). What is left to test here is the half that stayed
+// in the browser: that a completion goes to our own endpoint, carries what the
+// caller asked for, and never carries a key — because there is no longer one
+// here to carry.
+
+const apiFetchMock = vi.fn()
+vi.mock('./apiClient', () => ({
+  apiFetch: (...args) => apiFetchMock(...args),
+  AuthExpiredError: class extends Error {},
+}))
+
+const { callAI, generateCrossReferenceTable } = await import('./aiService')
+
 const AI_NODE_ID = 'ai-1'
 const nodes = [{ id: AI_NODE_ID, type: 'aiAssistantNode', data: { messages: [] } }]
 const edges = []
 
-function jsonResponse(body) {
-  return { ok: true, json: async () => body }
-}
+const ok = (text) => ({ ok: true, status: 200, json: async () => ({ text }) })
+const failure = (status, body) => ({ ok: false, status, json: async () => body })
 
-// Provider payload builders — `truncated` drives the finish-reason field each API uses.
-const openaiReply = (content, truncated = false) =>
-  jsonResponse({ choices: [{ message: { content }, finish_reason: truncated ? 'length' : 'stop' }] })
-
-const anthropicReply = (text, truncated = false) =>
-  jsonResponse({ content: [{ type: 'text', text }], stop_reason: truncated ? 'max_tokens' : 'end_turn' })
-
-const googleReply = (text, truncated = false) =>
-  jsonResponse({ candidates: [{ content: { parts: [{ text }] }, finishReason: truncated ? 'MAX_TOKENS' : 'STOP' }] })
-
-// The parsed request body of the Nth fetch call.
-function bodyOf(call) {
-  return JSON.parse(call[1].body)
-}
-
-let fetchMock
+const bodyOf = (call) => JSON.parse(call[1].body)
 
 beforeEach(() => {
-  fetchMock = vi.fn()
-  vi.stubGlobal('fetch', fetchMock)
+  apiFetchMock.mockReset()
 })
 
-afterEach(() => {
-  vi.unstubAllGlobals()
-})
+describe('completions go through our server', () => {
+  test('posts to the completion endpoint and returns its text', async () => {
+    apiFetchMock.mockResolvedValueOnce(ok('an answer'))
 
-describe('auto-continue disabled', () => {
-  test('makes a single call even when the response was truncated', async () => {
-    fetchMock.mockResolvedValueOnce(openaiReply('half an answer', true))
+    const out = await callAI(AI_NODE_ID, 'hi', nodes, edges, 'gpt-4o')
 
-    const out = await callAI(AI_NODE_ID, 'hi', nodes, edges, 'sk-test', 'gpt-4o', '', '')
-
-    expect(out).toBe('half an answer')
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-  })
-})
-
-describe('auto-continue enabled', () => {
-  test('does not continue when the model finished on its own', async () => {
-    fetchMock.mockResolvedValueOnce(openaiReply('a complete answer', false))
-
-    const out = await callAI(AI_NODE_ID, 'hi', nodes, edges, 'sk-test', 'gpt-4o', '', '', {
-      autoContinue: true,
-    })
-
-    expect(out).toBe('a complete answer')
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(out).toBe('an answer')
+    expect(apiFetchMock).toHaveBeenCalledTimes(1)
+    expect(apiFetchMock.mock.calls[0][0]).toBe('/api/v1/ai/complete')
+    expect(apiFetchMock.mock.calls[0][1].method).toBe('POST')
   })
 
-  test('re-prompts and concatenates until the model stops on its own (OpenAI)', async () => {
-    fetchMock
-      .mockResolvedValueOnce(openaiReply('part one ', true))
-      .mockResolvedValueOnce(openaiReply('part two ', true))
-      .mockResolvedValueOnce(openaiReply('the end', false))
+  test('sends the model and the assembled turns, and no key', async () => {
+    apiFetchMock.mockResolvedValueOnce(ok('an answer'))
 
-    const out = await callAI(AI_NODE_ID, 'hi', nodes, edges, 'sk-test', 'gpt-4o', '', '', {
-      autoContinue: true,
-    })
+    await callAI(AI_NODE_ID, 'hello there', nodes, edges, 'gpt-4o')
 
-    expect(out).toBe('part one part two the end')
-    expect(fetchMock).toHaveBeenCalledTimes(3)
+    const body = bodyOf(apiFetchMock.mock.calls[0])
+    expect(body.model).toBe('gpt-4o')
+    expect(body.messages.at(-1)).toEqual({ role: 'user', content: 'hello there' })
+    expect(JSON.stringify(body)).not.toMatch(/sk-/)
+    expect(body).not.toHaveProperty('apiKey')
   })
 
-  test('feeds each partial back as an assistant turn followed by a continue instruction', async () => {
-    fetchMock
-      .mockResolvedValueOnce(openaiReply('part one', true))
-      .mockResolvedValueOnce(openaiReply(' and done', false))
+  test('passes auto-continue through, since the server runs the loop', async () => {
+    apiFetchMock.mockResolvedValueOnce(ok('an answer'))
 
-    await callAI(AI_NODE_ID, 'hi', nodes, edges, 'sk-test', 'gpt-4o', '', '', { autoContinue: true })
+    await callAI(AI_NODE_ID, 'hi', nodes, edges, 'gpt-4o', { autoContinue: true })
 
-    const second = bodyOf(fetchMock.mock.calls[1]).messages
-    expect(second.at(-2)).toEqual({ role: 'assistant', content: 'part one' })
-    expect(second.at(-1).role).toBe('user')
-    expect(second.at(-1).content).toMatch(/continue from exactly where you stopped/i)
+    expect(bodyOf(apiFetchMock.mock.calls[0]).autoContinue).toBe(true)
   })
 
-  test('stops after the round cap so a always-truncating model cannot loop forever', async () => {
-    fetchMock.mockResolvedValue(openaiReply('more', true))
+  test('non-chat prompts take the same path', async () => {
+    apiFetchMock.mockResolvedValueOnce(ok('| a | b |'))
 
-    const out = await callAI(AI_NODE_ID, 'hi', nodes, edges, 'sk-test', 'gpt-4o', '', '', {
-      autoContinue: true,
-    })
+    const out = await generateCrossReferenceTable('report body', 'gpt-4o', { autoContinue: true })
 
-    // 1 initial call + 5 continuation rounds.
-    expect(fetchMock).toHaveBeenCalledTimes(6)
-    expect(out).toBe('more'.repeat(6))
-  })
-
-  test('stops when a continuation comes back empty', async () => {
-    fetchMock
-      .mockResolvedValueOnce(openaiReply('part one', true))
-      .mockResolvedValueOnce(openaiReply('', true))
-
-    const out = await callAI(AI_NODE_ID, 'hi', nodes, edges, 'sk-test', 'gpt-4o', '', '', {
-      autoContinue: true,
-    })
-
-    expect(out).toBe('part one')
-    expect(fetchMock).toHaveBeenCalledTimes(2)
-  })
-
-  test('detects Anthropic max_tokens truncation', async () => {
-    fetchMock
-      .mockResolvedValueOnce(anthropicReply('claude part one', true))
-      .mockResolvedValueOnce(anthropicReply(' claude finish', false))
-
-    const out = await callAI(AI_NODE_ID, 'hi', nodes, edges, '', 'claude-haiku-4-5-20251001', '', 'sk-ant', {
-      autoContinue: true,
-    })
-
-    expect(out).toBe('claude part one claude finish')
-    expect(fetchMock).toHaveBeenCalledTimes(2)
-  })
-
-  test('detects Google MAX_TOKENS truncation and resumes with a model turn', async () => {
-    fetchMock
-      .mockResolvedValueOnce(googleReply('gemma part one', true))
-      .mockResolvedValueOnce(googleReply(' gemma finish', false))
-
-    const out = await callAI(AI_NODE_ID, 'hi', nodes, edges, '', 'gemma-4-31b-it', 'goog-key', '', {
-      autoContinue: true,
-    })
-
-    expect(out).toBe('gemma part one gemma finish')
-
-    const contents = bodyOf(fetchMock.mock.calls[1]).contents
-    expect(contents.at(-2)).toEqual({ role: 'model', parts: [{ text: 'gemma part one' }] })
-    expect(contents.at(-1).role).toBe('user')
-  })
-
-  test('applies to non-chat prompts such as the cross-reference table', async () => {
-    fetchMock
-      .mockResolvedValueOnce(openaiReply('| a | b |', true))
-      .mockResolvedValueOnce(openaiReply('\n| c | d |', false))
-
-    const out = await generateCrossReferenceTable('report body', 'sk-test', 'gpt-4o', '', '', {
-      autoContinue: true,
-    })
-
-    expect(out).toBe('| a | b |\n| c | d |')
-    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(out).toBe('| a | b |')
+    expect(apiFetchMock.mock.calls[0][0]).toBe('/api/v1/ai/complete')
   })
 })
 
-describe('provider request shape', () => {
-  test('omits temperature for OpenAI reasoning models', async () => {
-    fetchMock.mockResolvedValueOnce(openaiReply('ok'))
+describe('when the call cannot be made', () => {
+  test('a missing key is reported as something the user can fix', async () => {
+    apiFetchMock.mockResolvedValueOnce(failure(428, {
+      error: 'No OpenAI key saved',
+      detail: 'Add one in Settings to use gpt-4o.',
+    }))
 
-    await callAI(AI_NODE_ID, 'hi', nodes, edges, 'sk-test', 'o1-preview', '', '')
-
-    expect(bodyOf(fetchMock.mock.calls[0])).not.toHaveProperty('temperature')
+    await expect(callAI(AI_NODE_ID, 'hi', nodes, edges, 'gpt-4o'))
+      .rejects.toThrow('No OpenAI key saved. Add one in Settings to use gpt-4o.')
   })
 
-  test('does not attach the search tool to Gemma models', async () => {
-    fetchMock.mockResolvedValueOnce(googleReply('ok'))
+  test("the provider's own words survive the trip back", async () => {
+    apiFetchMock.mockResolvedValueOnce(failure(502, { error: 'Incorrect API key provided' }))
 
-    await callAI(AI_NODE_ID, 'hi', nodes, edges, '', 'gemma-4-31b-it', 'goog-key', '')
-
-    expect(bodyOf(fetchMock.mock.calls[0])).not.toHaveProperty('tools')
+    await expect(callAI(AI_NODE_ID, 'hi', nodes, edges, 'gpt-4o'))
+      .rejects.toThrow(/Incorrect API key provided/)
   })
 
-  test('throws a provider-specific message when the key is missing', async () => {
-    await expect(
-      callAI(AI_NODE_ID, 'hi', nodes, edges, '', 'claude-haiku-4-5-20251001', '', '')
-    ).rejects.toThrow(/Anthropic API key/)
-    expect(fetchMock).not.toHaveBeenCalled()
+  test('an unexplained failure still says something', async () => {
+    apiFetchMock.mockResolvedValueOnce(failure(500, {}))
+
+    await expect(callAI(AI_NODE_ID, 'hi', nodes, edges, 'gpt-4o'))
+      .rejects.toThrow(/could not be reached \(500\)/)
   })
 })

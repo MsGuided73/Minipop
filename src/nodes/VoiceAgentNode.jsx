@@ -96,11 +96,21 @@ export default function VoiceAgentNode({ id, data, selected }) {
     })
   }, [playNextAudio])
 
+  // Voice is the one thing that did not survive keys moving server-side.
+  //
+  // It opens a WebSocket straight from this page to Gemini Live, and the
+  // browser can only authenticate that socket by holding the key — which is
+  // exactly what we stopped doing, and not something to make an exception for:
+  // the whole point is that a page never sees a key. Making this work again
+  // means relaying the socket through our server, which is real work rather
+  // than a flag. Until then it says so instead of failing obscurely.
   const connectVoice = useCallback(async () => {
-    if (!state.geminiKey) {
-      setError('Missing Gemini API Key in Settings')
-      return
-    }
+    setError(
+      'Voice chat is unavailable. It needs a direct connection to Google from your browser, ' +
+      'which is no longer possible now that keys are stored on your account rather than in ' +
+      'this page. Everything else works as before.'
+    )
+    return
 
     setIsConnecting(true)
     setError(null)

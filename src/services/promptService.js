@@ -137,12 +137,7 @@ export async function deletePrompt(id) {
 // {{variables}} that would make the prompt reusable across different sources.
 // Returns an array of variable definitions matching our schema.
 
-export async function suggestVariables(body, apiKey, model, geminiKey, anthropicKey) {
-  const isGoogle = model.startsWith('gemini') || model.startsWith('gemma')
-  const isAnthropic = model.startsWith('claude')
-  const currentKey = isGoogle ? geminiKey : isAnthropic ? anthropicKey : apiKey
-  if (!currentKey) throw new Error(`No ${isGoogle ? 'Google AI' : isAnthropic ? 'Anthropic' : 'OpenAI'} API key set.`)
-
+export async function suggestVariables(body, model) {
   const system = `You are a prompt engineering assistant. Given a long-form analysis prompt, identify the parts that should be templatized as {{variables}} so the prompt can be reused across different videos, audiences, and user goals.
 
 Return ONLY a JSON array (no prose, no markdown fences). Each element must be an object with:
@@ -158,76 +153,34 @@ Aim for 3–6 variables. Prefer: source type, user goals, target audience, depth
 
 For any variable controlling depth, length, thoroughness, or output volume, the "default" MUST be the most thorough option available — this library defaults to exhaustive output.`
 
-  const user = `Analyze this prompt and propose variables:\n\n---\n${body}\n---`
+  const user = `Analyze this prompt and propose variables:
 
-  if (isAnthropic) {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': currentKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens: 1200,
-        system,
-        messages: [{ role: 'user', content: user }],
-        temperature: 0.2,
-      }),
-    })
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}))
-      throw new Error(err.error?.message || `Anthropic error ${res.status}`)
-    }
-    const data = await res.json()
-    const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || ''
-    return parseSuggestion(text)
-  }
+---
+${body}
+---`
 
-  if (isGoogle) {
-    const isGemma = model.startsWith('gemma')
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${currentKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [
-          { role: 'user', parts: [{ text: `SYSTEM INSTRUCTION: ${system}` }] },
-          { role: 'user', parts: [{ text: user }] },
-        ],
-        generationConfig: { temperature: 0.2 },
-        ...(isGemma ? {} : { tools: [{ googleSearch: {} }] }),
-      }),
-    })
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}))
-      throw new Error(err.error?.message || `Google AI error ${res.status}`)
-    }
-    const data = await res.json()
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
-    return parseSuggestion(text)
-  }
-
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+  // Same server path as every other completion: the provider branches moved to
+  // lib/aiProviders.js so that the user's key never has to be in this page.
+  const res = await apiFetch('/api/v1/ai/complete', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${currentKey}` },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model,
-      messages: [
-        { role: 'system', content: system },
-        { role: 'user', content: user },
-      ],
+      model, system,
+      messages: [{ role: 'user', content: user }],
       temperature: 0.2,
-      max_completion_tokens: 1200,
+      maxTokens: 1200,
     }),
   })
+
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
-    throw new Error(err.error?.message || `OpenAI error ${res.status}`)
+    if (res.status === 428) {
+      throw new Error(`${err.error || 'No API key saved'}. ${err.detail || 'Add one in Settings.'}`)
+    }
+    throw new Error(err.error || `Could not suggest variables (${res.status})`)
   }
-  const data = await res.json()
-  const text = data.choices?.[0]?.message?.content || ''
+
+  const { text } = await res.json()
   return parseSuggestion(text)
 }
 

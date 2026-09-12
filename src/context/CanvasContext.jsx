@@ -5,46 +5,14 @@ import { apiFetch } from '../services/apiClient'
 
 const CanvasContext = createContext(null)
 
-// ─── Secure-ish API key storage ──────────────────────────────────────────────
-function encodeKey(raw) {
-  try { return btoa(unescape(encodeURIComponent(raw))) } catch { return raw }
-}
-function decodeKey(encoded) {
-  try { return decodeURIComponent(escape(atob(encoded))) } catch { return encoded }
-}
-function saveApiKey(raw) {
-  if (!raw) { localStorage.removeItem('poppyai_apikey'); return }
-  localStorage.setItem('poppyai_apikey', encodeKey(raw))
-}
-function readApiKey() {
-  try {
-    const stored = localStorage.getItem('poppyai_apikey')
-    if (!stored) return ''
-    return decodeKey(stored)
-  } catch { return '' }
-}
-function readGeminiKey() {
-  try {
-    const stored = localStorage.getItem('poppyai_gemini_key')
-    if (!stored) return ''
-    return decodeKey(stored)
-  } catch { return '' }
-}
-function saveGeminiKey(raw) {
-  if (!raw) { localStorage.removeItem('poppyai_gemini_key'); return }
-  localStorage.setItem('poppyai_gemini_key', encodeKey(raw))
-}
-function readAnthropicKey() {
-  try {
-    const stored = localStorage.getItem('poppyai_anthropic_key')
-    if (!stored) return ''
-    return decodeKey(stored)
-  } catch { return '' }
-}
-function saveAnthropicKey(raw) {
-  if (!raw) { localStorage.removeItem('poppyai_anthropic_key'); return }
-  localStorage.setItem('poppyai_anthropic_key', encodeKey(raw))
-}
+// ─── API keys ────────────────────────────────────────────────────────────────
+// Not kept here any more.
+//
+// They used to live in localStorage, which meant every tab could read them,
+// they never followed the user to another browser, and the provider call had
+// to be made from the page to use them. They now live encrypted against the
+// account (pop_user_keys) and the call happens on the server, so what the
+// client holds is a hint like "sk-…7Xb2" — enough to show which key is saved.
 
 const VALID_MODELS = ['gpt-4o', 'o1-preview', 'gemma-4-31b-it', 'gemma-4-26b-a4b-it', 'claude-haiku-4-5-20251001']
 
@@ -63,9 +31,9 @@ function readAutoContinue() {
 }
 
 const initialState = {
-  apiKey: readApiKey(),
-  geminiKey: readGeminiKey(),
-  anthropicKey: readAnthropicKey(),
+  // [{provider, label, hint, updatedAt}] — what is saved, never the keys.
+  keys: [],
+  keysLoaded: false,
   model: readModel(),
   autoContinue: readAutoContinue(),
   settingsOpen: false,
@@ -87,17 +55,8 @@ function canvasReducer(state, action) {
     case 'SET_EDGES':
       return { ...state, edges: action.edges }
 
-    case 'SET_API_KEY':
-      saveApiKey(action.key)
-      return { ...state, apiKey: action.key }
-
-    case 'SET_GEMINI_KEY':
-      saveGeminiKey(action.key)
-      return { ...state, geminiKey: action.key }
-
-    case 'SET_ANTHROPIC_KEY':
-      saveAnthropicKey(action.key)
-      return { ...state, anthropicKey: action.key }
+    case 'SET_KEYS':
+      return { ...state, keys: action.keys, keysLoaded: true }
 
     case 'SET_MODEL':
       localStorage.setItem('poppyai_model', action.model)
@@ -219,9 +178,50 @@ export function CanvasProvider({ children }) {
     }
   }, [])
 
+  // ─── The user's own provider keys ────────────────────────────────────────
+  // Write-only from here: we send a key up and get back a hint. Nothing in
+  // this app can read a stored key back out, including this function.
+  const fetchKeys = useCallback(async () => {
+    try {
+      const res = await apiFetch('/api/v1/keys')
+      if (!res.ok) throw new Error('Could not read saved keys')
+      dispatch({ type: 'SET_KEYS', keys: await res.json() })
+    } catch (err) {
+      // A server without key storage configured is a 503 here. The app still
+      // works for everything that is not a model call, so this is not fatal —
+      // Settings says what is wrong when the user goes looking.
+      console.error('Failed to fetch keys:', err.message)
+      dispatch({ type: 'SET_KEYS', keys: [] })
+    }
+  }, [])
+
+  const saveKey = useCallback(async (provider, key) => {
+    const res = await apiFetch(`/api/v1/keys/${provider}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key }),
+    })
+    const body = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error([body.error, body.detail].filter(Boolean).join(' '))
+    await fetchKeys()
+    return body
+  }, [fetchKeys])
+
+  const removeKey = useCallback(async (provider) => {
+    const res = await apiFetch(`/api/v1/keys/${provider}`, { method: 'DELETE' })
+    if (!res.ok && res.status !== 204) {
+      const body = await res.json().catch(() => ({}))
+      throw new Error(body.error || 'Could not remove your key')
+    }
+    await fetchKeys()
+  }, [fetchKeys])
+
   const value = {
     state,
     dispatch,
+    fetchKeys,
+    saveKey,
+    removeKey,
     addNode,
     updateNode,
     deleteNode,
@@ -340,6 +340,7 @@ export function CanvasProvider({ children }) {
 
   // Effect to load boards and folders on mount
   React.useEffect(() => {
+    value.fetchKeys()
     value.fetchBoardsFromServer()
     value.fetchProjectsFromServer()
     value.fetchFoldersFromServer()

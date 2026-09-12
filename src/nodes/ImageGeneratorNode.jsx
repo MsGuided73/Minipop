@@ -17,7 +17,7 @@ export default function ImageGeneratorNode({ id, data, selected }) {
     setError(null)
     
     try {
-      const base64Image = await generateImage(prompt, state.apiKey, state.model, state.geminiKey)
+      const base64Image = await generateImage(prompt, state.model)
       
       updateNode(id, {
         data: {
@@ -31,7 +31,7 @@ export default function ImageGeneratorNode({ id, data, selected }) {
     } finally {
       setIsGenerating(false)
     }
-  }, [prompt, id, state.apiKey, state.model, state.geminiKey, updateNode])
+  }, [prompt, id, state.model, updateNode])
 
   return (
     <div className={`node ai-node ${selected ? 'selected' : ''}`} style={{ width: '100%', height: '100%', minWidth: '320px', minHeight: '340px' }}>

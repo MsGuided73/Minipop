@@ -2,6 +2,7 @@ import React, { useState, useCallback, useMemo } from 'react'
 import { Handle, Position, NodeResizer, useReactFlow, useEdges, useNodes } from '@xyflow/react'
 import { X, GitCompare, Copy, Check, Trash2, Loader, AlertCircle, FileText, RefreshCw, Sparkles, Table2 } from 'lucide-react'
 import { useCanvas } from '../context/CanvasContext'
+import { getProvider } from '../services/aiService'
 import { generateCrossReference, generateCrossReferenceTable, resolveConnectedNodeIds } from '../services/aiService'
 import { useNodeReader, NodeReaderBar } from '../components/NodeReader'
 import './nodes.css'
@@ -29,6 +30,10 @@ export default function CrossReferenceNode({ id, data, selected }) {
     return allNodes.filter(n => edgeIds.includes(n.id) && n.type !== 'aiAssistantNode' && n.type !== 'analysisNode' && n.type !== 'crossReferenceNode')
   }, [allEdges, allNodes, id])
 
+  // The key itself is on the server; what we have here is whether one is saved
+  // for this model's provider, which is all this checklist needs to say.
+  const hasKeyForModel = state.keys?.some(k => k.provider === getProvider(state.model))
+
 
   const handleDelete = useCallback((e) => {
     e.stopPropagation()
@@ -47,7 +52,7 @@ export default function CrossReferenceNode({ id, data, selected }) {
     try {
       const nodes = getNodes()
       const edges = getEdges()
-      const response = await generateCrossReference(id, nodes, edges, state.apiKey, state.model, state.geminiKey, state.anthropicKey, { autoContinue: state.autoContinue })
+      const response = await generateCrossReference(id, nodes, edges, state.model, { autoContinue: state.autoContinue })
       
       updateNode(id, { data: { ...data, report: response, tableData: '' } })
     } catch (err) {
@@ -55,7 +60,7 @@ export default function CrossReferenceNode({ id, data, selected }) {
     } finally {
       setLoading(false)
     }
-  }, [connectedSources, id, data, state.apiKey, state.model, state.geminiKey, state.anthropicKey, state.autoContinue, getNodes, getEdges, updateNode])
+  }, [connectedSources, id, data, state.model, state.autoContinue, getNodes, getEdges, updateNode])
 
   const handleGenerateTable = useCallback(async () => {
     if (!report) return
@@ -63,14 +68,14 @@ export default function CrossReferenceNode({ id, data, selected }) {
     setError('')
     
     try {
-      const response = await generateCrossReferenceTable(report, state.apiKey, state.model, state.geminiKey, state.anthropicKey, { autoContinue: state.autoContinue })
+      const response = await generateCrossReferenceTable(report, state.model, { autoContinue: state.autoContinue })
       updateNode(id, { data: { ...data, tableData: response } })
     } catch (err) {
       setError(err.message)
     } finally {
       setTableLoading(false)
     }
-  }, [report, id, data, state.apiKey, state.model, state.geminiKey, state.anthropicKey, state.autoContinue, updateNode])
+  }, [report, id, data, state.model, state.autoContinue, updateNode])
 
   const handleCopy = useCallback(() => {
     if (!report) return
@@ -168,8 +173,8 @@ export default function CrossReferenceNode({ id, data, selected }) {
                 {connectedSources.length > 1 ? <Check size={12} /> : <div className="dot" />}
                 2+ Sources connected
               </div>
-              <div className={`req-item ${state.apiKey ? 'met' : ''}`}>
-                {state.apiKey ? <Check size={12} /> : <div className="dot" />}
+              <div className={`req-item ${hasKeyForModel ? 'met' : ''}`}>
+                {hasKeyForModel ? <Check size={12} /> : <div className="dot" />}
                 API Key configured
               </div>
             </div>

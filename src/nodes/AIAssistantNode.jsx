@@ -53,7 +53,7 @@ export default function AIAssistantNode({ id, data, selected }) {
     try {
       const nodes = getNodes()
       const edges = getEdges()
-      const response = await callAI(id, msg, nodes, edges, state.apiKey, state.model, state.geminiKey, state.anthropicKey, { autoContinue: state.autoContinue })
+      const response = await callAI(id, msg, nodes, edges, state.model, { autoContinue: state.autoContinue })
 
       const assistantMsg = {
         id: Date.now() + 1,
@@ -69,7 +69,7 @@ export default function AIAssistantNode({ id, data, selected }) {
     } finally {
       setLoading(false)
     }
-  }, [input, loading, id, updateNode, callAI, state.apiKey, state.model, state.geminiKey, state.anthropicKey, state.autoContinue, getNodes, getEdges])
+  }, [input, loading, id, updateNode, callAI, state.model, state.autoContinue, getNodes, getEdges])
 
   const handleKeyDown = useCallback((e) => {
     if (e.key === 'Enter' && !e.shiftKey) {

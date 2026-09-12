@@ -49,3 +49,44 @@ board is opened.
 `auth.json` is a live token, which is why `.visual/` is gitignored — treat it
 like the password it stands in for. Without credentials the check says the page
 is at the sign-in screen instead of timing out on a missing card.
+
+## API keys (BYOK)
+
+Users bring their own provider key. It is stored against their account,
+encrypted, and used only by the server:
+
+```
+browser ──prompt──▶ /api/v1/ai/complete ──prompt + your key──▶ OpenAI / Google / Anthropic
+                            │
+                    pop_user_keys (ciphertext)
+```
+
+The key is never sent back to a browser, including the browser that saved it.
+Settings shows a hint (`sk-…7Xb2`) and offers Replace and Remove; there is no
+path in the app that reads a stored key back out.
+
+**Server environment** — both are required before keys can be saved or used;
+without them the key routes answer 503 saying which is missing, rather than
+storing keys in the clear:
+
+```bash
+KEY_ENCRYPTION_SECRET=...   # 32+ chars: node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
+SUPABASE_SERVICE_ROLE_KEY=...  # Supabase dashboard → Settings → API → service_role
+```
+
+`KEY_ENCRYPTION_SECRET` must be **the same everywhere that shares a database**.
+Local and production point at the same Supabase project, so a key saved against
+one and read by the other only works if both hold the same secret. Change it and
+every stored key becomes unreadable — users re-enter them, nothing else breaks.
+
+The service role key bypasses row-level security and must never reach a browser.
+It is needed because `pop_user_keys` denies every other role: RLS is on with no
+policies, so even a user's own browser, holding their own JWT, cannot read their
+own ciphertext. See [supabase/user_keys.sql](supabase/user_keys.sql) and
+[lib/keyCrypto.js](lib/keyCrypto.js).
+
+**What this changed for users:** keys now follow the account, so signing in on a
+new browser no longer means pasting the key again. One feature did not survive:
+the voice agent opened a WebSocket straight from the page to Gemini Live, which
+only works if the browser holds the key. It reports that instead of failing
+obscurely, and needs a server-side socket relay to come back.

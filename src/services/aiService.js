@@ -1,5 +1,7 @@
 // src/services/aiService.js
 
+import { apiFetch } from './apiClient'
+
 /**
  * Resolves all connected node IDs, including spatial inclusion via Group Nodes.
  */
@@ -140,15 +142,6 @@ export function getProvider(model = '') {
   return 'openai'
 }
 
-const PROVIDER_LABELS = { google: 'Google AI', anthropic: 'Anthropic', openai: 'OpenAI' }
-
-// Resolve the API key for a model from the three possible keys.
-function keyForModel(model, { apiKey, geminiKey, anthropicKey }) {
-  const provider = getProvider(model)
-  if (provider === 'google') return geminiKey
-  if (provider === 'anthropic') return anthropicKey
-  return apiKey
-}
 
 // ─── Auto-continue ───────────────────────────────────────────────────────────
 // When a provider stops because it hit the output-token ceiling rather than
@@ -182,144 +175,41 @@ const CONTINUE_INSTRUCTION =
   'genuinely complete, simply stop.'
 
 /**
- * Single low-level call to whichever provider owns `model`.
+ * One completion, run by the server.
  *
- * `system` is the system instruction; `messages` is the user/assistant turn list
- * (no system role — each provider gets it in its native slot).
+ * The provider call used to happen here, which meant the user's API key had to
+ * be in the browser to make it. It now lives behind /api/v1/ai/complete: the
+ * client sends the prompt it assembled, the server adds that user's own stored
+ * key, and the key never enters a page. Auto-continue moved with it, so a long
+ * answer is still one request from here.
  *
- * Returns `{ text, truncated }` where `truncated` is true when the model stopped
- * because it ran out of output tokens, which is what auto-continue keys off.
+ * @returns {Promise<string>} the full text
  */
-async function callProvider({ apiKey, model, system, messages, temperature, maxTokens, useSearch = false }) {
-  const provider = getProvider(model)
-  const cappedMaxTokens = clampMaxTokens(model, maxTokens)
-
-  if (provider === 'google') {
-    const isGemma = model.startsWith('gemma')
-    const contents = [
-      ...(system ? [{ role: 'user', parts: [{ text: `SYSTEM INSTRUCTION: ${system}` }] }] : []),
-      ...messages.map(m => ({
-        role: m.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: m.content }],
-      })),
-    ]
-
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents,
-        ...(temperature != null ? { generationConfig: { temperature } } : {}),
-        // Gemma has no tool support; the search grounding is Gemini-only.
-        ...(useSearch && !isGemma ? { tools: [{ googleSearch: {} }] } : {}),
-      }),
-    })
-
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}))
-      throw new Error(err.error?.message || `Google AI API error: ${response.status}`)
-    }
-
-    const data = await response.json()
-    const candidate = data.candidates?.[0]
-    const text = (candidate?.content?.parts || []).map(p => p.text || '').join('') || ''
-    return { text, truncated: candidate?.finishReason === 'MAX_TOKENS' }
-  }
-
-  if (provider === 'anthropic') {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens: cappedMaxTokens,
-        ...(system ? { system } : {}),
-        messages,
-        ...(temperature != null ? { temperature } : {}),
-      }),
-    })
-
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}))
-      throw new Error(err.error?.message || `Anthropic API error: ${response.status}`)
-    }
-
-    const data = await response.json()
-    const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || ''
-    return { text, truncated: data.stop_reason === 'max_tokens' }
-  }
-
-  // OpenAI. Reasoning models (o1/o3/o4) reject an explicit temperature.
-  const isReasoningModel = model.startsWith('o1') || model.startsWith('o3') || model.startsWith('o4')
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+async function runCompletion({ model, system, messages, temperature, maxTokens, useSearch, autoContinue }) {
+  const res = await apiFetch('/api/v1/ai/complete', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        ...(system ? [{ role: 'system', content: system }] : []),
-        ...messages,
-      ],
-      max_completion_tokens: cappedMaxTokens,
-      ...(temperature != null && !isReasoningModel ? { temperature } : {}),
-    }),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model, system, messages, temperature, maxTokens, useSearch, autoContinue }),
   })
 
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}))
-    throw new Error(err.error?.message || `OpenAI API error: ${response.status}`)
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    // 428 is the server saying "this account has no key for that model yet".
+    // It is the one failure the user can act on, so it gets the clearer words.
+    if (res.status === 428) {
+      throw new Error(`${body.error || 'No API key saved'}. ${body.detail || 'Add one in Settings.'}`)
+    }
+    throw new Error(body.error || `The model could not be reached (${res.status})`)
   }
 
-  const data = await response.json()
-  const choice = data.choices?.[0]
-  return { text: choice?.message?.content || '', truncated: choice?.finish_reason === 'length' }
-}
-
-/**
- * Runs a completion, optionally re-prompting the model to "continue" whenever it
- * stops on the output-token ceiling instead of finishing its answer. Each partial
- * is fed back as an assistant turn so the model knows exactly where to resume.
- *
- * With `autoContinue` off this is a single call — identical to the old behaviour.
- */
-async function runCompletion({ autoContinue = false, ...opts }) {
-  let turns = opts.messages
-  let full = ''
-
-  for (let round = 0; ; round++) {
-    const { text, truncated } = await callProvider({ ...opts, messages: turns })
-    full += text
-
-    const canContinue = autoContinue && truncated && text && round < MAX_AUTO_CONTINUE_ROUNDS
-    if (!canContinue) break
-
-    turns = [
-      ...turns,
-      { role: 'assistant', content: text },
-      { role: 'user', content: CONTINUE_INSTRUCTION },
-    ]
-  }
-
-  return full
+  const { text } = await res.json()
+  return text
 }
 
 /**
  * Handles generating chat responses based on node connections.
  */
-export async function callAI(aiNodeId, userMessage, nodes, edges, apiKey, model, geminiKey, anthropicKey, options = {}) {
-  const currentKey = keyForModel(model, { apiKey, geminiKey, anthropicKey })
-
-  if (!currentKey) {
-    throw new Error(`No ${PROVIDER_LABELS[getProvider(model)]} API key set. Open ⚙️ Settings and paste your key.`)
-  }
+export async function callAI(aiNodeId, userMessage, nodes, edges, model, options = {}) {
 
   const { sourceContext, personaContext } = buildAIContext(aiNodeId, nodes, edges)
 
@@ -349,7 +239,6 @@ PROACTIVE GUIDANCE & ENHANCED SUGGESTIONS:
   const history = aiNode?.data?.messages || []
 
   return runCompletion({
-    apiKey: currentKey,
     model,
     system: systemPrompt,
     messages: [
@@ -366,12 +255,7 @@ PROACTIVE GUIDANCE & ENHANCED SUGGESTIONS:
 /**
  * Highly structured viral pattern analysis based on connected source nodes.
  */
-export async function analyzeViralPatterns(aiNodeId, nodes, edges, apiKey, model, geminiKey, anthropicKey, options = {}) {
-  const currentKey = keyForModel(model, { apiKey, geminiKey, anthropicKey })
-
-  if (!currentKey) {
-    throw new Error(`No ${PROVIDER_LABELS[getProvider(model)]} API key set. Open ⚙️ Settings and paste your key.`)
-  }
+export async function analyzeViralPatterns(aiNodeId, nodes, edges, model, options = {}) {
 
   const { sourceContext, personaContext } = buildAIContext(aiNodeId, nodes, edges)
   if (!sourceContext && !personaContext) throw new Error('No sources or personas connected for analysis.')
@@ -402,7 +286,6 @@ If a YouTube video or URL source is missing a transcript or text (e.g. marked as
 - Mention the source label for each insight.`
 
   return runCompletion({
-    apiKey: currentKey,
     model,
     system: systemPrompt,
     messages: [{ role: 'user', content: 'Perform a comprehensive viral pattern analysis across these sources.' }],
@@ -417,12 +300,7 @@ If a YouTube video or URL source is missing a transcript or text (e.g. marked as
 /**
  * Generates a structured cross-reference matrix (agreements, contradictions, assumptions, gaps) based on connected source nodes.
  */
-export async function generateCrossReference(aiNodeId, nodes, edges, apiKey, model, geminiKey, anthropicKey, options = {}) {
-  const currentKey = keyForModel(model, { apiKey, geminiKey, anthropicKey })
-
-  if (!currentKey) {
-    throw new Error(`No ${PROVIDER_LABELS[getProvider(model)]} API key set. Open ⚙️ Settings and paste your key.`)
-  }
+export async function generateCrossReference(aiNodeId, nodes, edges, model, options = {}) {
 
   const { sourceContext, personaContext } = buildAIContext(aiNodeId, nodes, edges)
   if (!sourceContext && !personaContext) throw new Error('No sources connected for cross-referencing.')
@@ -449,7 +327,6 @@ You MUST output your final analysis as a detailed Markdown Report, divided into 
 Do NOT format as a table - provide a comprehensive, long-form narrative analysis.`
 
   return runCompletion({
-    apiKey: currentKey,
     model,
     system: systemPrompt,
     messages: [{ role: 'user', content: 'Generate the structured investigative Cross-Reference Report.' }],
@@ -463,12 +340,7 @@ Do NOT format as a table - provide a comprehensive, long-form narrative analysis
 /**
  * Converts a generated textual Cross-Reference Report into a strict Markdown table.
  */
-export async function generateCrossReferenceTable(reportText, apiKey, model, geminiKey, anthropicKey, options = {}) {
-  const currentKey = keyForModel(model, { apiKey, geminiKey, anthropicKey })
-
-  if (!currentKey) {
-    throw new Error(`No ${PROVIDER_LABELS[getProvider(model)]} API key set. Open ⚙️ Settings and paste your key.`)
-  }
+export async function generateCrossReferenceTable(reportText, model, options = {}) {
 
   const systemPrompt = `You are an expert Data Structurer. Your task is to extract the findings from the provided investigative report and convert them STRICTLY into a Markdown table.
 Do not add any new analysis, just format the existing findings.
@@ -478,7 +350,6 @@ You MUST output ONLY a markdown table with exactly these columns:
 | Topic/Entity | Competing Claims & Sources | Assumptions & Fallacies | Logic & Evidence Gaps | Narrative & Rhetoric | Status (Agree/Conflict) |`
 
   return runCompletion({
-    apiKey: currentKey,
     model,
     system: systemPrompt,
     messages: [{ role: 'user', content: `Here is the report to convert:\n\n${reportText}\n\nGenerate the Markdown table.` }],
@@ -497,12 +368,7 @@ You MUST output ONLY a markdown table with exactly these columns:
  */
 export const LENS_KICKOFF = 'Begin the analysis now. Output the complete report in the format specified.'
 
-export async function callLensChat(lensNodeId, userMessage, renderedPrompt, history, nodes, edges, apiKey, model, geminiKey, anthropicKey, options = {}) {
-  const currentKey = keyForModel(model, { apiKey, geminiKey, anthropicKey })
-
-  if (!currentKey) {
-    throw new Error(`No ${PROVIDER_LABELS[getProvider(model)]} API key set. Open ⚙️ Settings and paste your key.`)
-  }
+export async function callLensChat(lensNodeId, userMessage, renderedPrompt, history, nodes, edges, model, options = {}) {
 
   const { sourceContext, personaContext } = buildAIContext(lensNodeId, nodes, edges)
 
@@ -519,7 +385,6 @@ export async function callLensChat(lensNodeId, userMessage, renderedPrompt, hist
   const trimmedHistory = (history || []).slice(-20)
 
   return runCompletion({
-    apiKey: currentKey,
     model,
     system: systemPrompt,
     messages: [
@@ -534,62 +399,24 @@ export async function callLensChat(lensNodeId, userMessage, renderedPrompt, hist
 }
 
 /**
- * Handles image generation calls via OpenAI/Google models.
+ * One image, generated by the server with the user's own stored key.
+ * @returns {Promise<string>} a data: URL
  */
-export async function generateImage(prompt, apiKey, model, geminiKey) {
-  if (model.startsWith('claude')) {
-    throw new Error('Image generation is not supported by Claude models. Switch to an OpenAI or Google model in ⚙️ Settings to generate images.')
-  }
-  const isGoogle = model.startsWith('gemini') || model.startsWith('gemma') || model.startsWith('nano')
-  const currentKey = isGoogle ? geminiKey : apiKey
+export async function generateImage(prompt, model) {
+  const res = await apiFetch('/api/v1/ai/image', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model, prompt }),
+  })
 
-  if (!currentKey) {
-    throw new Error(`No ${isGoogle ? 'Google AI' : 'OpenAI'} API key set. Open ⚙️ Settings and paste your key.`)
-  }
-
-  if (isGoogle) {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-fast-generate-001:predict?key=${currentKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        instances: [{ prompt }],
-        parameters: { sampleCount: 1 }
-      })
-    })
-
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}))
-      throw new Error(err.error?.message || `Nano Banana 2 error: ${response.status}`)
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    if (res.status === 428) {
+      throw new Error(`${body.error || 'No API key saved'}. ${body.detail || 'Add one in Settings.'}`)
     }
-
-    const data = await response.json()
-    const b64 = data.predictions?.[0]?.bytesBase64Encoded || data.predictions?.[0]?.image?.bytesBase64Encoded || data.predictions?.[0]?.b64_json
-    if (!b64) throw new Error("No image data returned from Nano Banana 2")
-    return `data:image/png;base64,${b64}`
-  } else {
-    const response = await fetch('https://api.openai.com/v1/images/generations', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${currentKey}`,
-      },
-      body: JSON.stringify({
-        model: 'dall-e-3',
-        prompt,
-        n: 1,
-        size: "1024x1024",
-        response_format: "b64_json"
-      }),
-    })
-
-    if (!response.ok) {
-        const err = await response.json().catch(() => ({}))
-        throw new Error(err.error?.message || `OpenAI Image error: ${response.status}`)
-    }
-
-    const data = await response.json()
-    const b64 = data.data?.[0]?.b64_json
-    if (!b64) throw new Error("No image data returned from OpenAI")
-    return `data:image/png;base64,${b64}`
+    throw new Error(body.error || `The image could not be generated (${res.status})`)
   }
+
+  const { image } = await res.json()
+  return image
 }

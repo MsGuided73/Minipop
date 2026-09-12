@@ -103,7 +103,7 @@ export default function LensNode({ id, data, selected }) {
       const reply = await callLensChat(
         id, userMessage, renderedPrompt, currentMessages,
         getNodes(), getEdges(),
-        state.apiKey, state.model, state.geminiKey, state.anthropicKey,
+        state.model,
         { autoContinue: state.autoContinue }
       )
       const nextMessages = [
@@ -128,8 +128,8 @@ export default function LensNode({ id, data, selected }) {
       inFlight.current = false
       setLoading(false)
     }
-  }, [id, renderedPrompt, getNodes, getEdges, state.apiKey, state.model, state.geminiKey,
-      state.anthropicKey, state.autoContinue, updateNode, data.autoLabel])
+  }, [id, renderedPrompt, getNodes, getEdges, state.model, state.autoContinue,
+      updateNode, data.autoLabel])
 
   const handleRun = useCallback(() => {
     if (loading) return
