@@ -86,7 +86,7 @@ own ciphertext. See [supabase/user_keys.sql](supabase/user_keys.sql) and
 [lib/keyCrypto.js](lib/keyCrypto.js).
 
 **What this changed for users:** keys now follow the account, so signing in on a
-new browser no longer means pasting the key again. One feature did not survive:
-the voice agent opened a WebSocket straight from the page to Gemini Live, which
-only works if the browser holds the key. It reports that instead of failing
-obscurely, and needs a server-side socket relay to come back.
+new browser no longer means pasting the key again. The voice agent was removed
+in the same change — it opened a WebSocket straight from the page to Gemini
+Live, which only works if the browser holds the key. Nothing else depended on
+it and no board used one.

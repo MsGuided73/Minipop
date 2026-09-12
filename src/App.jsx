@@ -33,7 +33,6 @@ import GroupNode from './nodes/GroupNode'
 import SemanticEdge from './components/SemanticEdge'
 import EdgeMarkers from './components/canvas/EdgeMarkers'
 import ImageGeneratorNode from './nodes/ImageGeneratorNode'
-import VoiceAgentNode from './nodes/VoiceAgentNode'
 import LensNode from './nodes/LensNode'
 import TranscriptNode from './nodes/TranscriptNode'
 import { renderPrompt } from './services/promptService'
@@ -52,7 +51,6 @@ const NODE_TYPES = {
   personaNode: PersonaNode,
   groupNode: GroupNode,
   imageGeneratorNode: ImageGeneratorNode,
-  voiceAgentNode: VoiceAgentNode,
   lensNode: LensNode,
   transcriptNode: TranscriptNode,
 }
@@ -819,7 +817,6 @@ function getNodeDefaults(type) {
     case 'documentNode': return { label: 'Document' }
     case 'crossReferenceNode': return { label: 'Cross-Reference Matrix' }
     case 'imageGeneratorNode': return { label: 'Image Gen', prompt: '' }
-    case 'voiceAgentNode': return { label: 'Voice Agent' }
     case 'groupNode': return { label: 'Grouping Window' }
     case 'lensNode': return { label: 'Lens', promptTitle: '', promptTags: [], promptBody: '', renderedPrompt: '', values: {}, report: '', autoLabel: true }
     case 'transcriptNode': return { label: 'Transcript', transcript: '', videoUrl: '', uploader: '', viewCount: 0, duration: 0 }

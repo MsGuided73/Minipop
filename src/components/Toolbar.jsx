@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Bot, Type, Globe, Image, Youtube, FileText, Trash2, Settings, Download, Upload, Plus, ChevronDown, Zap, UserSquare, Sun, Moon, Wand2, Mic, GitCompare, Layers, Eye, Cpu, Check, Infinity as InfinityIcon } from 'lucide-react'
+import { Bot, Type, Globe, Image, Youtube, FileText, Trash2, Settings, Download, Upload, Plus, ChevronDown, Zap, UserSquare, Sun, Moon, Wand2, GitCompare, Layers, Eye, Cpu, Check, Infinity as InfinityIcon } from 'lucide-react'
 import { useCanvas } from '../context/CanvasContext'
 import { MODELS, modelLabel } from '../constants/models'
 import './Toolbar.css'
@@ -17,7 +17,6 @@ const nodeTypes = [
   { type: 'lensNode', label: 'Lens', icon: Eye, color: '#e8832a', desc: 'Apply a library prompt' },
   { type: 'transcriptNode', label: 'Transcript', icon: FileText, color: '#a78bfa', desc: 'Open a video transcript' },
   { type: 'imageGeneratorNode', label: 'Image Gen', icon: Wand2, color: '#ff8aeb', desc: 'Nano Banana 2 / GPT-img' },
-  { type: 'voiceAgentNode', label: 'Voice Agent', icon: Mic, color: '#fb923c', desc: 'Live Gemini Voice Call' },
 ]
 
 export default function Toolbar({ onAddNode, theme, onToggleTheme }) {
