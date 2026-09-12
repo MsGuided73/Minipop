@@ -25,7 +25,7 @@ so it shows the **last build** rather than the working tree — run `npm run
 build` first, or point at Vite on `:5173` for live source.
 
 A real board is behind the sign-in gate, and the check drives its own browser
-with its own empty session. Give it a test account:
+with its own empty session, so it needs a sign-in:
 
 ```bash
 # .env (gitignored)
@@ -33,13 +33,19 @@ AGENT_EMAIL=...
 AGENT_PASSWORD=...
 ```
 
+These are your own credentials, not a service account's: the check acts as you,
+on your boards. That is what makes it worth running, and it is why the check is
+read-only — it opens a board and photographs it. It never saves over, renames,
+or deletes anything. Creating a new board is fine; changing one that already
+exists is not.
+
 It signs in, opens a board from the explorer (the first one, or
 `--board=<name>` to choose), and keeps the session in `.visual/auth.json` so
 later runs skip the form; delete that file to sign in again. Opening a board is
 not optional: the app rehydrates its canvas from browser-local storage, and
 this browser has none, so a signed-in run starts on an empty canvas until a
-board is opened. The account therefore needs one saved board with cards on it. Use an account that
-exists only for this — the run drives the real app as whoever signs in, and
-`auth.json` is a live token (which is why `.visual/` is gitignored). Without
-credentials the check says the page is at the sign-in screen instead of timing
-out on a missing card.
+board is opened.
+
+`auth.json` is a live token, which is why `.visual/` is gitignored — treat it
+like the password it stands in for. Without credentials the check says the page
+is at the sign-in screen instead of timing out on a missing card.

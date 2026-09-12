@@ -15,15 +15,21 @@
 // the assertions look for cards, not for fixtures.
 //
 // A real board is behind the sign-in gate, and this browser has its own empty
-// session, so --url signs in with a test account when one is configured:
+// session, so --url signs in when credentials are configured:
 //
-//   AGENT_EMAIL=bot@…
+//   AGENT_EMAIL=…
 //   AGENT_PASSWORD=…
 //
-// in .env (gitignored) or the environment. Use an account that exists only for
-// this — the run drives the real app as whoever signs in. The session is kept
-// in .visual/auth.json so later runs skip the form; that file is a live token,
-// which is why .visual/ is gitignored. Delete it to sign in again.
+// in .env (gitignored) or the environment. Those are the owner's own
+// credentials, not a bot's: this drives the real app as a real person, on real
+// boards, which is the whole reason it is worth doing and the whole reason it
+// is read-only. It opens a board and photographs it. Nothing here saves over,
+// renames, or deletes anything — keep it that way. A new board is fine to
+// create; an existing one is not ours to change.
+//
+// The session is kept in .visual/auth.json so later runs skip the form; that
+// file is a live token, which is why .visual/ is gitignored. Delete it to sign
+// in again.
 //
 // A signed-in browser starts on an empty canvas, since the app rehydrates from
 // browser-local storage and this profile has none, so the run opens a board
@@ -168,7 +174,7 @@ const atSignIn = page => page.locator('text=Sign in to your boards').count().the
 async function signIn(page, url) {
   if (!credentials) {
     throw new Error(
-      `${url} is showing the sign-in screen, and no test account is configured. ` +
+      `${url} is showing the sign-in screen, and no credentials are configured. ` +
       'Set AGENT_EMAIL and AGENT_PASSWORD in .env, or drop --url to use the fixture canvas.'
     )
   }
