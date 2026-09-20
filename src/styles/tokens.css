@@ -59,6 +59,12 @@
   --t-hover: 150ms;
   --t-panel: 240ms;
 
+  /* The floating toolbar is its own translucent surface. It used to hard-code
+     a near-black, which left light mode painting dark text on a dark bar. */
+  --float-surface: rgba(19, 20, 28, .92);
+  --wordmark-from: #c4b5fd;
+  --wordmark-to: #93c5fd;
+
   /* type */
   --font-display: "Fraunces", Georgia, serif;
   --font-ui: "Instrument Sans", system-ui, -apple-system, sans-serif;
@@ -93,6 +99,9 @@
     --err: #b8496f;
     --shadow-card: 0 4px 14px rgba(40, 50, 46, .10);
     --shadow-overlay: 0 10px 30px rgba(40, 50, 46, .18);
+    --float-surface: rgba(255, 255, 255, .92);
+    --wordmark-from: #6d3ad6;
+    --wordmark-to: #1d4ed8;
   }
 }
 
@@ -122,6 +131,9 @@
   --err: #b8496f;
   --shadow-card: 0 4px 14px rgba(40, 50, 46, .10);
   --shadow-overlay: 0 10px 30px rgba(40, 50, 46, .18);
+  --float-surface: rgba(255, 255, 255, .92);
+  --wordmark-from: #6d3ad6;
+  --wordmark-to: #1d4ed8;
 }
 
 :root[data-theme="dark"] { color-scheme: dark; }
@@ -154,6 +166,9 @@
   --reader-bg: #f9f8f2; --reader-ink: #2e3936;
   --shadow-card: 0 4px 14px rgba(40, 50, 46, .10);
   --shadow-overlay: 0 10px 30px rgba(40, 50, 46, .18);
+  --float-surface: rgba(244, 243, 236, .94);
+  --wordmark-from: #6d3ad6;
+  --wordmark-to: #1d4ed8;
 }
 
 /* ── Bridge to the legacy variable names ────────────────────────────────────

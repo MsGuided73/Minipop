@@ -190,7 +190,10 @@ body,
 
 .btn-primary {
   background: linear-gradient(180deg, #f09b51 0%, var(--accent-primary) 100%);
-  color: #fff;
+  /* Dark ink on the accent, the same pairing the shell's Save button uses.
+     White here measured 2.2:1 against the orange — below AA in every theme,
+     and the reason the toolbar's Add Node label was hard to read. */
+  color: #23160a;
   border: 1px solid #bf681c;
   box-shadow: 
     0 4px 12px rgba(232, 131, 42, 0.4),
