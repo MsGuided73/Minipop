@@ -90,6 +90,17 @@ export default function AppShell({
           {edgeCount === 1 ? 'connection' : 'connections'}
         </span>
 
+        {/* Starting fresh is a top-level action, not one buried in the
+            explorer — the explorer collapses, and the topbar never does. */}
+        <button
+          className="cl-newcanvas-btn"
+          onClick={onNewCanvas}
+          title="Start a new canvas"
+        >
+          <Plus size={13} />
+          New canvas
+        </button>
+
         {/* Saving to the server is explicit. Local autosave keeps the canvas
             safe between saves, but only this writes it to your account. */}
         <button

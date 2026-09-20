@@ -345,8 +345,15 @@ export function CanvasProvider({ children }) {
         if (flowInstanceRef.current?.setEdges) flowInstanceRef.current.setEdges(board.edges)
       }
     },
-    setBoardInfo: (name, id, folderId = null) => {
-      dispatch({ type: 'SET_BOARD_INFO', name, id: id || state.boardId, folderId: folderId ?? state.folderId })
+    // Omitting folderId keeps the current one; passing null clears it. A new
+    // canvas has to be able to say "no subject", which `??` could not express.
+    setBoardInfo: (name, id, folderId) => {
+      dispatch({
+        type: 'SET_BOARD_INFO',
+        name,
+        id: id || state.boardId,
+        folderId: folderId === undefined ? state.folderId : folderId,
+      })
     },
     clearCanvas: () => {
       if (flowInstanceRef.current?.setNodes) flowInstanceRef.current.setNodes([])

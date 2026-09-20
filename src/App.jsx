@@ -76,12 +76,23 @@ function CanvasApp() {
   // deletions all flow through these two arrays.
   useEffect(() => { setIsDirty(true) }, [nodes, edges])
 
+  // Swapping the whole canvas — opening a board, or starting a new one — is not
+  // an edit, so the board arrives clean. The nodes arrive a tick late: the swap
+  // writes to React Flow's own store, and useNodesState mirrors that back into
+  // `nodes` in a later commit, which trips the effect above. Hence the timeout —
+  // it lands after that mirror, where an immediate reset would be overwritten.
+  useEffect(() => {
+    const id = setTimeout(() => setIsDirty(false), 0)
+    return () => clearTimeout(id)
+  }, [state.boardId])
+
+  // A new canvas is a new board id with no folder, so the save dialog does not
+  // pre-file it under whatever subject the previous board happened to live in.
   const handleNewCanvas = useCallback(() => {
     if (isDirty && nodes.length > 0 &&
         !window.confirm('This canvas has unsaved changes. Start a new one anyway?')) return
     clearCanvas()
     setBoardInfo('Untitled Canvas', crypto.randomUUID(), null)
-    setIsDirty(false)
   }, [isDirty, nodes.length, clearCanvas, setBoardInfo])
 
   const [saveDialogOpen, setSaveDialogOpen] = useState(false)

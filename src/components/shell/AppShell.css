@@ -208,6 +208,19 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 }
 .cl-new-btn:hover { border-color: var(--accent); color: var(--ink); }
 
+.cl-newcanvas-btn {
+  flex: none;
+  display: inline-flex; align-items: center; gap: 6px;
+  font: inherit; font-size: 12px; font-weight: 600;
+  padding: 5px 12px; min-height: 30px;
+  border-radius: var(--r-control);
+  border: 1px solid var(--line);
+  background: none; color: var(--muted); cursor: pointer;
+  transition: border-color var(--t-hover) ease, color var(--t-hover) ease;
+  white-space: nowrap;
+}
+.cl-newcanvas-btn:hover { border-color: var(--accent); color: var(--ink); }
+
 .cl-save-btn {
   flex: none;
   display: inline-flex; align-items: center; gap: 6px;
@@ -235,4 +248,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 @media (max-width: 900px) {
   .cl-topbar-meta { display: none; }
   .cl-crumb b { max-width: 18ch; }
+  /* The icon still reads as "new"; the word is what has to go first. */
+  .cl-newcanvas-btn { padding: 5px 8px; font-size: 0; gap: 0; }
 }
