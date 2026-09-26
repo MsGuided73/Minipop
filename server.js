@@ -171,8 +171,19 @@ const db = (req) => req.db || supabase;
 app.get('/api/health', (req, res) => {
   // List env keys that look related so we can spot naming mismatches (keys only, never values).
   const relevantEnvKeys = Object.keys(process.env)
-    .filter(k => /SUPA|ANON|APIFY|POPPY/i.test(k))
+    .filter(k => /SUPA|ANON|APIFY|POPPY|KEY_ENCRYPTION/i.test(k))
     .sort();
+
+  // "Key storage unavailable" is the same 503 whether the secret is absent,
+  // blank, or simply too short, and a deploy that silently drops a runtime
+  // variable looks identical to one that never set it. Naming which of those
+  // it is turns a guessing game into one request. The value is never reported
+  // — only whether it is there and whether it is long enough.
+  const secret = process.env.KEY_ENCRYPTION_SECRET;
+  const keyStorage = isCryptoConfigured() ? 'ready'
+    : secret === undefined ? 'secret-missing'
+    : secret.trim() === '' ? 'secret-blank'
+    : 'secret-too-short';
 
   res.json({
     status: 'ok',
@@ -182,6 +193,7 @@ app.get('/api/health', (req, res) => {
     supabaseKeySet: !!supabaseKey,
     supabaseKeyLength: supabaseKey ? supabaseKey.length : 0,
     apifyConfigured: !!process.env.APIFY_API_TOKEN,
+    keyStorage,
     authMode: 'supabase-jwt',
     nodeEnv: process.env.NODE_ENV || 'development',
     uptimeSec: Math.round(process.uptime()),
