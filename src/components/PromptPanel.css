@@ -132,39 +132,6 @@
   color: var(--text-muted);
 }
 
-.prompt-panel-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  padding: 4px 12px 10px;
-  border-bottom: 1px solid var(--border-default);
-}
-
-.prompt-tag-chip {
-  font-size: 10px;
-  font-weight: 600;
-  padding: 3px 8px;
-  border-radius: var(--radius-full);
-  background: var(--bg-card);
-  color: var(--text-secondary);
-  border: 1px solid var(--border-default);
-  cursor: pointer;
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-  transition: all 120ms ease;
-}
-
-.prompt-tag-chip:hover {
-  border-color: var(--accent-primary);
-  color: var(--text-primary);
-}
-
-.prompt-tag-chip.active {
-  background: var(--accent-primary);
-  color: #fff;
-  border-color: var(--accent-primary);
-}
-
 .prompt-list {
   flex: 1;
   overflow-y: auto;

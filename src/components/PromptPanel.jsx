@@ -19,7 +19,6 @@ export default function PromptPanel({ onSpawnLensNode }) {
   const [prompts, setPrompts] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [activeTag, setActiveTag] = useState(null)
   const [selectedId, setSelectedId] = useState(null)
   const [fillingPrompt, setFillingPrompt] = useState(null)
   const [creatingNew, setCreatingNew] = useState(false)
@@ -72,16 +71,9 @@ export default function PromptPanel({ onSpawnLensNode }) {
   }, [])
 
   // ─── Derived data ───────────────────────────────────────────────────────
-  const allTags = useMemo(() => {
-    const set = new Set()
-    prompts.forEach(p => (p.tags || []).forEach(t => set.add(t)))
-    return [...set].sort()
-  }, [prompts])
-
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     return prompts.filter(p => {
-      if (activeTag && !(p.tags || []).includes(activeTag)) return false
       if (!q) return true
       return (
         p.title.toLowerCase().includes(q) ||
@@ -89,7 +81,7 @@ export default function PromptPanel({ onSpawnLensNode }) {
         (p.tags || []).some(t => t.toLowerCase().includes(q))
       )
     })
-  }, [prompts, search, activeTag])
+  }, [prompts, search])
 
   const selected = prompts.find(p => p.id === selectedId) || null
 
@@ -168,29 +160,6 @@ export default function PromptPanel({ onSpawnLensNode }) {
             onChange={e => setSearch(e.target.value)}
           />
         </div>
-
-        {allTags.length > 0 && (
-          <div className="prompt-panel-tags">
-            {activeTag && (
-              <button
-                className="prompt-tag-chip active"
-                onClick={() => setActiveTag(null)}
-              >
-                <X size={9} style={{ verticalAlign: 'middle', marginRight: 3 }} />
-                {activeTag}
-              </button>
-            )}
-            {!activeTag && allTags.map(t => (
-              <button
-                key={t}
-                className="prompt-tag-chip"
-                onClick={() => setActiveTag(t)}
-              >
-                {t}
-              </button>
-            ))}
-          </div>
-        )}
 
         <div className="prompt-list">
           {loading && <div className="prompt-empty">Loading prompts…</div>}
