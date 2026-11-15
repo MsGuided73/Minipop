@@ -34,7 +34,7 @@ const RULES = [
 ]
 
 const SOURCE_NODE_TYPES = new Set([
-  'youtubeNode', 'mediaNode', 'documentNode', 'urlNode', 'textNode', 'transcriptNode',
+  'youtubeNode', 'rumbleNode', 'mediaNode', 'documentNode', 'urlNode', 'textNode', 'transcriptNode',
 ])
 
 /**

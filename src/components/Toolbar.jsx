@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Bot, Type, Globe, Image, Youtube, FileText, Trash2, Settings, Download, Upload, Plus, ChevronDown, Zap, UserSquare, Sun, Moon, Wand2, GitCompare, Layers, Eye, Cpu, Check, Network, Infinity as InfinityIcon } from 'lucide-react'
+import { Bot, Type, Globe, Image, Youtube, FileText, Trash2, Settings, Download, Upload, Plus, ChevronDown, Zap, UserSquare, Sun, Moon, Wand2, GitCompare, Layers, Eye, Cpu, Check, Network, Video, Infinity as InfinityIcon } from 'lucide-react'
 import { useCanvas } from '../context/CanvasContext'
 import { MODELS, modelLabel } from '../constants/models'
 import './Toolbar.css'
@@ -11,6 +11,7 @@ const nodeTypes = [
   { type: 'urlNode', label: 'Web Link', icon: Globe, color: '#60a5fa', desc: 'Link any URL' },
   { type: 'mediaNode', label: 'Media', icon: Image, color: '#a78bfa', desc: 'Image or video' },
   { type: 'youtubeNode', label: 'YouTube', icon: Youtube, color: '#ff4070', desc: 'YouTube video' },
+  { type: 'rumbleNode', label: 'Rumble', icon: Video, color: '#85c742', desc: 'Rumble video, transcribed' },
   { type: 'analysisNode', label: 'Analysis', icon: Zap, color: '#fbbf24', desc: 'Extract viral patterns' },
   { type: 'personaNode', label: 'Persona', icon: UserSquare, color: '#ff6b6b', desc: 'Brand voice & tone' },
   { type: 'crossReferenceNode', label: 'Cross-Reference', icon: GitCompare, color: '#ec4899', desc: 'Find contradictions & gaps' },

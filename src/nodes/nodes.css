@@ -105,6 +105,7 @@
 
 .node-icon--media { background: rgba(124, 92, 252, 0.2); color: #a78bfa; }
 .node-icon--youtube { background: rgba(255, 0, 60, 0.15); color: #ff4070; }
+.node-icon--rumble { background: rgba(133, 199, 66, 0.15); color: #85c742; }
 .node-icon--text { background: rgba(80, 200, 120, 0.15); color: #4ade80; }
 .node-icon--url { background: rgba(100, 170, 255, 0.15); color: #60a5fa; }
 .node-icon--document { background: rgba(250, 200, 80, 0.15); color: #fbbf24; }

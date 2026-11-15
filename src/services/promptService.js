@@ -45,6 +45,8 @@ function humanize(name) {
 
 const NODE_TYPE_TO_VIDEO_TYPE = {
   youtubeNode: 'YouTube video',
+  // The prompts' "Source type" list has no Rumble option; a video is a video.
+  rumbleNode: 'YouTube video',
   mediaNode: 'Media (image/video file)',
   documentNode: 'Document or PDF',
   textNode: 'Notes',
@@ -80,7 +82,7 @@ export function pickPrimarySourceLabel(targetNodeId, nodes, edges) {
     .map(e => (e.source === targetNodeId ? e.target : e.source))
   const sourceNodes = nodes.filter(n => connectedIds.includes(n.id))
   if (sourceNodes.length === 0) return null
-  const primary = sourceNodes.find(n => n.type === 'youtubeNode') || sourceNodes[0]
+  const primary = sourceNodes.find(n => n.type === 'youtubeNode' || n.type === 'rumbleNode') || sourceNodes[0]
   return primary?.data?.label || null
 }
 

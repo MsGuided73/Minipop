@@ -22,6 +22,7 @@ import Settings from './components/Settings'
 import PromptPanel from './components/PromptPanel'
 import MediaNode from './nodes/MediaNode'
 import YouTubeNode from './nodes/YouTubeNode'
+import RumbleNode from './nodes/RumbleNode'
 import TextNode from './nodes/TextNode'
 import URLNode from './nodes/URLNode'
 import DocumentNode from './nodes/DocumentNode'
@@ -37,6 +38,7 @@ import LensNode from './nodes/LensNode'
 import TranscriptNode from './nodes/TranscriptNode'
 import { renderPrompt } from './services/promptService'
 import { radialLayout } from './lib/radialLayout'
+import { isRumbleUrl } from './lib/rumbleUrl'
 import './App.css'
 
 // How long nodes glide to their new spots when the canvas is organized.
@@ -46,6 +48,7 @@ const ORGANIZE_MS = 350
 const NODE_TYPES = {
   mediaNode: MediaNode,
   youtubeNode: YouTubeNode,
+  rumbleNode: RumbleNode,
   textNode: TextNode,
   urlNode: URLNode,
   documentNode: DocumentNode,
@@ -294,7 +297,7 @@ function CanvasApp() {
     // most recently-added content node (preferring YouTube/media/document over notes).
     let sourceNode = sourceNodeId ? nodes.find(n => n.id === sourceNodeId) : null
     if (!sourceNode) {
-      const PRIORITY = ['youtubeNode', 'mediaNode', 'documentNode', 'urlNode', 'textNode']
+      const PRIORITY = ['youtubeNode', 'rumbleNode', 'mediaNode', 'documentNode', 'urlNode', 'textNode']
       const candidates = nodes.filter(n => PRIORITY.includes(n.type))
       // Iterate in priority order; within each type, prefer the last (most recent) entry.
       for (const type of PRIORITY) {
@@ -469,15 +472,16 @@ function CanvasApp() {
     if (files.length === 0 && url) {
       const pos = screenToCanvas(e.clientX, e.clientY)
       const isYouTube = /youtube\.com|youtu\.be/.test(url)
-      const type = isYouTube ? 'youtubeNode' : 'urlNode'
+      const isRumble = isRumbleUrl(url)
+      const type = isYouTube ? 'youtubeNode' : isRumble ? 'rumbleNode' : 'urlNode'
       const id = crypto.randomUUID()
       const newNode = {
         id,
         type,
         position: pos,
         data: {
-          label: isYouTube ? 'YouTube Video' : new URL(url).hostname.replace('www.', ''),
-          url,
+          label: isYouTube ? 'YouTube Video' : isRumble ? 'Rumble Video' : new URL(url).hostname.replace('www.', ''),
+          url: isRumble ? url.trim() : url,
           extractedText: `URL: ${url}`,
         },
       }
@@ -529,13 +533,14 @@ function CanvasApp() {
       }) || { x: 200, y: 200 }
 
       const isYouTube = /youtube\.com|youtu\.be/.test(text)
+      const isRumble = isRumbleUrl(text)
       const id = crypto.randomUUID()
       const newNode = {
         id,
-        type: isYouTube ? 'youtubeNode' : 'urlNode',
+        type: isYouTube ? 'youtubeNode' : isRumble ? 'rumbleNode' : 'urlNode',
         position: center,
         data: {
-          label: isYouTube ? 'YouTube Video' : 'Web Link',
+          label: isYouTube ? 'YouTube Video' : isRumble ? 'Rumble Video' : 'Web Link',
           url: text.trim(),
           extractedText: `URL: ${text.trim()}`,
         },
@@ -586,7 +591,7 @@ function CanvasApp() {
             <div className="drop-overlay-content">
               <div className="drop-overlay-icon">📎</div>
               <p className="drop-overlay-text">Drop files or URLs onto the canvas</p>
-              <p className="drop-overlay-hint">Images, videos, PDFs, documents, YouTube links…</p>
+              <p className="drop-overlay-hint">Images, videos, PDFs, documents, YouTube and Rumble links…</p>
             </div>
           </div>
         )}
@@ -678,7 +683,7 @@ function CanvasApp() {
                   <span>📁</span> Drop images, videos, PDFs
                 </div>
                 <div className="canvas-empty-hint">
-                  <span>🔗</span> Paste YouTube or web URLs
+                  <span>🔗</span> Paste YouTube, Rumble or web URLs
                 </div>
                 <div className="canvas-empty-hint">
                   <span>🤖</span> Add AI Assistant nodes to synthesize
@@ -851,6 +856,7 @@ function getNodeDefaults(type) {
     case 'urlNode': return { label: 'Web Link', url: '' }
     case 'mediaNode': return { label: 'Media', mimeType: '' }
     case 'youtubeNode': return { label: 'YouTube', url: '' }
+    case 'rumbleNode': return { label: 'Rumble', url: '' }
     case 'documentNode': return { label: 'Document' }
     case 'crossReferenceNode': return { label: 'Cross-Reference Matrix' }
     case 'imageGeneratorNode': return { label: 'Image Gen', prompt: '' }
@@ -867,6 +873,7 @@ function getNodeMinimapColor(type) {
   switch (type) {
     case 'aiAssistantNode': return '#7c5cfc'
     case 'youtubeNode': return '#ff4070'
+    case 'rumbleNode': return '#85c742'
     case 'textNode': return '#4ade80'
     case 'urlNode': return '#60a5fa'
     case 'documentNode': return '#fbbf24'

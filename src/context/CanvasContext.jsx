@@ -439,6 +439,7 @@ function getNodeDimensions(type) {
   switch (type) {
     case 'mediaNode': return { width: 280, height: 200 }
     case 'youtubeNode': return { width: 320, height: 260 }
+    case 'rumbleNode': return { width: 320, height: 260 }
     case 'aiAssistantNode': return { width: 380, height: 480 }
     case 'textNode': return { width: 260, height: 160 }
     case 'urlNode': return { width: 300, height: 180 }

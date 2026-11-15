@@ -105,6 +105,14 @@ export function buildAIContext(aiNodeId, nodes, edges) {
             : 'No transcript extracted — summarize based on your knowledge of the URL.',
         ].filter(Boolean).join('\n')
         break
+      case 'rumbleNode':
+        content = [
+          `Rumble Video URL: ${node.data.url || '(no url)'}`,
+          node.data.extractedText && node.data.extractedText !== `URL: ${node.data.url}`
+            ? `Transcript/Content:\n${node.data.extractedText}`
+            : 'No transcript extracted yet.',
+        ].filter(Boolean).join('\n')
+        break
       case 'urlNode':
         content = [
           `Web URL: ${node.data.url || '(no url)'}`,

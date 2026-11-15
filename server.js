@@ -16,6 +16,8 @@ import { isStaticAssetPath, assetNotFoundBody } from './lib/staticAssets.js';
 import { encryptKey, decryptKey, keyHint, isCryptoConfigured } from './lib/keyCrypto.js';
 import { getProvider, PROVIDER_LABELS, runCompletion, generateImage } from './lib/aiProviders.js';
 import { isAllowedOrigin, parseAllowList } from './lib/corsOrigin.js';
+import { normalizeRumbleUrl, rumbleVideoId, transcribeRumble } from './lib/rumble.js';
+import { createJobStore } from './lib/jobStore.js';
 
 dotenv.config();
 
@@ -870,6 +872,115 @@ app.post('/api/v1/ai/image', completionLimiter, requireAuth, requireKeyStore, as
     console.error('[ai] image failed:', err.message);
     res.status(502).json({ error: err.message || 'The image provider rejected the request' });
   }
+});
+
+/**
+ * Rumble ingestion.
+ *
+ * Rumble has no captions to fetch, so the audio is transcribed with the
+ * caller's own OpenAI key (Whisper) or, failing that, their Google key. That
+ * takes minutes for a long video, so the POST starts a job and the page polls
+ * the GET. Results land in the same pop_transcripts cache YouTube uses, under
+ * a "rumble:" id so the two never collide.
+ */
+const rumbleJobs = createJobStore({ ttlMs: 30 * 60 * 1000, maxRunning: 2 });
+// Whisper is the better transcriber and cheaper per minute, so it wins when
+// the user has both keys.
+const RUMBLE_PROVIDERS = ['openai', 'google'];
+
+async function savedKey(req, provider) {
+  const { data: row, error } = await db(req)
+    .from('pop_user_keys')
+    .select('ciphertext, iv, tag')
+    .eq('user_id', req.user.id)
+    .eq('provider', provider)
+    .maybeSingle();
+  if (error) throw new Error('Could not read your saved key');
+  return row ? decryptKey(row) : null;
+}
+
+app.post('/api/v1/rumble', transcriptLimiter, requireAuth, requireKeyStore, async (req, res) => {
+  const url = normalizeRumbleUrl(req.body?.url);
+  if (!url) return res.status(400).json({ error: 'That is not a Rumble video link', detail: 'Paste a link like https://rumble.com/v…-title.html' });
+
+  const cacheId = rumbleVideoId(url) ? `rumble:${rumbleVideoId(url)}` : null;
+
+  if (supabase && cacheId && req.body?.force !== true) {
+    const { data: cached } = await db(req).from('pop_transcripts').select('*').eq('video_id', cacheId).maybeSingle();
+    if (cached?.transcript) {
+      return res.json({
+        status: 'done',
+        transcript: cached.transcript,
+        metadata: {
+          title: cached.title,
+          description: cached.description,
+          viewCount: cached.view_count,
+          likeCount: cached.like_count,
+          duration: cached.duration,
+          uploader: cached.uploader,
+          uploadDate: cached.upload_date,
+          comments: [],
+        },
+        via: `${cached.fetched_via || 'rumble'}-cached`,
+        cached: true,
+      });
+    }
+  }
+
+  let provider = null;
+  let apiKey = null;
+  try {
+    for (const candidate of RUMBLE_PROVIDERS) {
+      apiKey = await savedKey(req, candidate);
+      if (apiKey) { provider = candidate; break; }
+    }
+  } catch (err) {
+    console.error('[rumble] key lookup failed:', err.message);
+    return res.status(500).json({ error: 'Could not read your saved key', detail: 'Re-enter it in Settings.' });
+  }
+  if (!provider) {
+    return res.status(428).json({
+      error: 'No transcription key saved',
+      detail: 'Add an OpenAI or Google AI key in Settings to transcribe Rumble videos.',
+      provider: 'openai',
+    });
+  }
+
+  const job = rumbleJobs.start(req.user.id, async (setStage) => {
+    const result = await transcribeRumble({ url, provider, apiKey, onStage: setStage });
+    if (supabase && cacheId) {
+      const { metadata } = result;
+      const { error: upsertErr } = await db(req).from('pop_transcripts').upsert({
+        video_id: cacheId,
+        url,
+        title: metadata.title,
+        uploader: metadata.uploader,
+        view_count: metadata.viewCount || null,
+        like_count: metadata.likeCount || null,
+        duration: metadata.duration || null,
+        upload_date: metadata.uploadDate || null,
+        description: metadata.description || null,
+        transcript: result.transcript,
+        transcript_char_count: result.transcript.length,
+        comments: [],
+        fetched_via: result.via,
+        refreshed_at: new Date().toISOString(),
+      }, { onConflict: 'video_id' });
+      if (upsertErr) console.error('[rumble] cache upsert failed:', upsertErr.message);
+    }
+    return result;
+  });
+
+  if (!job) {
+    return res.status(429).json({ error: 'Rumble transcription is busy', detail: 'Two videos are already being transcribed. Try again in a minute.' });
+  }
+  res.status(202).json({ status: 'running', jobId: job.id });
+});
+
+app.get('/api/v1/rumble/:jobId', requireAuth, (req, res) => {
+  const job = rumbleJobs.get(req.user.id, req.params.jobId);
+  if (!job) return res.status(404).json({ error: 'That transcription is no longer available', detail: 'Start it again.' });
+  res.json(job);
 });
 
 /**

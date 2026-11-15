@@ -7,7 +7,7 @@
 // Priority: the most specific source wins. A YouTube video title beats a
 // document filename, which beats a raw URL, which beats a text note.
 
-const PRIORITY = ['youtubeNode', 'transcriptNode', 'documentNode', 'urlNode', 'mediaNode', 'textNode']
+const PRIORITY = ['youtubeNode', 'rumbleNode', 'transcriptNode', 'documentNode', 'urlNode', 'mediaNode', 'textNode']
 
 const MAX = 60
 

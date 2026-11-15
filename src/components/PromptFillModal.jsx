@@ -68,7 +68,7 @@ export default function PromptFillModal({
     const nodes = getNodes()
     const explicit = nodes.find(n => n.selected)
     if (explicit) return explicit
-    const PRIORITY = ['youtubeNode', 'mediaNode', 'documentNode', 'urlNode', 'textNode']
+    const PRIORITY = ['youtubeNode', 'rumbleNode', 'mediaNode', 'documentNode', 'urlNode', 'textNode']
     for (const type of PRIORITY) {
       const matches = nodes.filter(n => n.type === type)
       if (matches.length > 0) return matches[matches.length - 1]
