@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Bot, Type, Globe, Image, Youtube, FileText, Trash2, Settings, Download, Upload, Plus, ChevronDown, Zap, UserSquare, Sun, Moon, Wand2, GitCompare, Layers, Eye, Cpu, Check, Infinity as InfinityIcon } from 'lucide-react'
+import { Bot, Type, Globe, Image, Youtube, FileText, Trash2, Settings, Download, Upload, Plus, ChevronDown, Zap, UserSquare, Sun, Moon, Wand2, GitCompare, Layers, Eye, Cpu, Check, Network, Infinity as InfinityIcon } from 'lucide-react'
 import { useCanvas } from '../context/CanvasContext'
 import { MODELS, modelLabel } from '../constants/models'
 import './Toolbar.css'
@@ -19,7 +19,7 @@ const nodeTypes = [
   { type: 'imageGeneratorNode', label: 'Image Gen', icon: Wand2, color: '#ff8aeb', desc: 'Nano Banana 2 / GPT-img' },
 ]
 
-export default function Toolbar({ onAddNode, theme, onToggleTheme }) {
+export default function Toolbar({ onAddNode, onOrganize, theme, onToggleTheme }) {
   const { state, dispatch } = useCanvas()
   const [addMenuOpen, setAddMenuOpen] = useState(false)
   const [modelMenuOpen, setModelMenuOpen] = useState(false)
@@ -199,6 +199,14 @@ export default function Toolbar({ onAddNode, theme, onToggleTheme }) {
           title={`Switch to ${theme === 'light' ? 'Dark' : 'Light'} Mode`}
         >
           {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
+        </button>
+        <button
+          className="btn-icon"
+          onClick={onOrganize}
+          title="Organize nodes around the selected one and fit them on screen (O)"
+          aria-label="Organize nodes"
+        >
+          <Network size={15} />
         </button>
         <button className="btn-icon" onClick={handleImport} title="Import canvas">
           <Upload size={15} />

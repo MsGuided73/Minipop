@@ -36,7 +36,11 @@ import ImageGeneratorNode from './nodes/ImageGeneratorNode'
 import LensNode from './nodes/LensNode'
 import TranscriptNode from './nodes/TranscriptNode'
 import { renderPrompt } from './services/promptService'
+import { radialLayout } from './lib/radialLayout'
 import './App.css'
+
+// How long nodes glide to their new spots when the canvas is organized.
+const ORGANIZE_MS = 350
 
 // Register node types
 const NODE_TYPES = {
@@ -399,7 +403,25 @@ function CanvasApp() {
     return () => { delete window.__contentloomSpawnTranscript }
   }, [handleSpawnTranscriptNode])
 
-  // Keyboard shortcuts: + / - / 0 to zoom in / zoom out / fit-view.
+  // Re-arrange every node on rings around the selected (or most-connected)
+  // node, then zoom so the whole arrangement is on screen.
+  const handleOrganize = useCallback(() => {
+    const positions = radialLayout(nodes, edges)
+    if (positions.size === 0) return
+
+    const wrapper = reactFlowWrapper.current
+    wrapper?.classList.add('is-organizing')
+    setNodes(nds =>
+      nds.map(n => (positions.has(n.id) ? { ...n, position: positions.get(n.id) } : n))
+    )
+    // Wait a frame so React Flow has the new positions before it measures bounds.
+    requestAnimationFrame(() => {
+      reactFlowInstance.current?.fitView({ duration: ORGANIZE_MS, padding: 0.15 })
+    })
+    setTimeout(() => wrapper?.classList.remove('is-organizing'), ORGANIZE_MS + 50)
+  }, [nodes, edges, setNodes])
+
+  // Keyboard shortcuts: + / - / 0 to zoom in / zoom out / fit-view, O to organize.
   // Ignored while typing in inputs/textareas/contentEditable so it doesn't fight chat or notes.
   useEffect(() => {
     const isTypingTarget = (el) => {
@@ -424,12 +446,15 @@ function CanvasApp() {
       } else if (e.key === '0') {
         e.preventDefault()
         reactFlowInstance.current.fitView({ duration: 260, padding: 0.2 })
+      } else if (e.key === 'o' || e.key === 'O') {
+        e.preventDefault()
+        handleOrganize()
       }
     }
 
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [])
+  }, [handleOrganize])
 
   // File drop handler
   const handleDrop = useCallback(async (e) => {
@@ -541,7 +566,8 @@ function CanvasApp() {
     >
       <div className="app-main">
         <Toolbar 
-          onAddNode={(type) => handleAddNode(type)} 
+          onAddNode={(type) => handleAddNode(type)}
+          onOrganize={handleOrganize}
           theme={theme}
           onToggleTheme={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
         />
