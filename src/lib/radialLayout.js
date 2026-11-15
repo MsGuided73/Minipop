@@ -5,11 +5,12 @@
 
 const DEFAULT_WIDTH = 280
 const DEFAULT_HEIGHT = 200
-const GAP = 48
+const GAP = 28
 // Screens are wider than tall, so rings are ellipses rather than circles.
-const ASPECT = 1.5
-const MAX_GROWTH_STEPS = 24
-const GROWTH_FACTOR = 1.08
+const ASPECT = 1.15
+// Rings start tight and grow in small steps until nothing touches.
+const RADIUS_STEP = 12
+const MAX_GROWTH_STEPS = 400
 
 export function nodeSize(node) {
   return {
@@ -87,10 +88,13 @@ function placeRing(members, radius, origin, startAngle) {
   })
 }
 
-function hasOverlap(boxes) {
+function collides(boxes, obstacles) {
   for (let i = 0; i < boxes.length; i++) {
     for (let j = i + 1; j < boxes.length; j++) {
       if (overlaps(boxes[i], boxes[j])) return true
+    }
+    for (const o of obstacles) {
+      if (overlaps(boxes[i], o)) return true
     }
   }
   return false
@@ -130,25 +134,27 @@ export function radialLayout(nodes, edges, rootId) {
   }
 
   const rootSize = nodeSize(root)
-  let innerEdge = Math.hypot(rootSize.width, rootSize.height) / 2
+  // Everything already fixed in place: the centre card, then each finished ring.
+  const obstacles = [{ ...origin, ...rootSize }]
   const result = new Map()
 
   for (const ring of [...rings.keys()].sort((a, b) => a - b)) {
     const members = rings.get(ring).sort((a, b) => a.angle - b.angle)
-    const reach = Math.max(...members.map(m => Math.hypot(m.width, m.height) / 2))
     const startAngle = members[0].angle
 
-    let radius = innerEdge + reach + GAP
+    // Start as close in as the smallest card allows and push outward only as
+    // far as needed, so cards hug the centre instead of floating away from it.
+    let radius = Math.min(...members.map(m => Math.min(m.width, m.height))) / 2
     let placed = placeRing(members, radius, origin, startAngle)
-    for (let step = 0; step < MAX_GROWTH_STEPS && hasOverlap(placed); step++) {
-      radius *= GROWTH_FACTOR
+    for (let step = 0; step < MAX_GROWTH_STEPS && collides(placed, obstacles); step++) {
+      radius += RADIUS_STEP
       placed = placeRing(members, radius, origin, startAngle)
     }
 
     for (const box of placed) {
       result.set(box.id, { x: box.x - box.width / 2, y: box.y - box.height / 2 })
     }
-    innerEdge = radius + reach
+    obstacles.push(...placed)
   }
   return result
 }

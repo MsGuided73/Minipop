@@ -92,3 +92,20 @@ describe('pickRoot', () => {
     expect(pickRoot(nodes, [edge('hub', 'a'), edge('hub', 'c')])).toBe('hub')
   })
 })
+
+describe('radialLayout compactness', () => {
+  test('a handful of children stay close to the centre card', () => {
+    const hub = node('hub', 0, 0, { measured: { width: 320, height: 260 } })
+    const kids = Array.from({ length: 5 }, (_, i) => node(`k${i}`, 900 * i, -700))
+    const nodes = [hub, ...kids]
+    const positions = radialLayout(nodes, kids.map(k => edge('hub', k.id)), 'hub')
+    for (const k of kids) {
+      const p = positions.get(k.id)
+      const gapX = Math.max(0, Math.abs(p.x + 135 - 160) - 135 - 160)
+      const gapY = Math.max(0, Math.abs(p.y + 90 - 130) - 90 - 130)
+      // Edge-to-edge distance from the centre card, not centre-to-centre.
+      expect(Math.hypot(gapX, gapY)).toBeLessThan(120)
+    }
+    expect(anyOverlap(boxes(nodes, positions))).toBe(false)
+  })
+})
